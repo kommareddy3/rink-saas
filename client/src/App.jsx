@@ -8,6 +8,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import ML from "./pages/ML";
 import Upload from "./pages/Upload";
+import Contact from "./pages/Contact";
 
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/ml" element={<ML />} />
           <Route path="/upload" element={<Upload />} />
+          <Route path="/contact" element={<Contact />} />
         </Routes>
       </div>
     </BrowserRouter>
