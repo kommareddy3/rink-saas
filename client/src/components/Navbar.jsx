@@ -16,11 +16,8 @@ export default function Navbar() {
       </div>
       <div className="space-x-6">
         <Link to="/" className="hover:text-blue-400">Home</Link>
-        <Link to="/login" className="hover:text-blue-400">Login</Link>
-        <Link to="/register" className="hover:text-blue-400">Register</Link>
-        <Link to="/dashboard" className="hover:text-blue-400">Dashboard</Link>
-        <Link to="/ml" className="hover:text-blue-400">ML</Link>
-        <Link to="/upload">Upload</Link>
+        <Link to="/auth" className="hover:text-blue-400">Auth</Link>
+        <Link to="/analytics" className="hover:text-blue-400">Analytics</Link>
         <Link to="/contact">Contact</Link>
       </div>
     </div>

@@ -3,11 +3,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
-import ML from "./pages/ML";
-import Upload from "./pages/Upload";
+import Auth from "./pages/Auth";
+import Analytics from "./pages/Analytics";
 import Contact from "./pages/Contact";
 
 
@@ -18,11 +15,8 @@ export default function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/ml" element={<ML />} />
-          <Route path="/upload" element={<Upload />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/contact" element={<Contact />} />
         </Routes>
       </div>
