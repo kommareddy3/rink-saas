@@ -5,6 +5,7 @@ import React from "react";
 // =========================
 import { useEffect, useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../config";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
@@ -19,13 +20,13 @@ export default function Dashboard() {
 const fetchData = async () => {
   try {
     // 1. Get actual data
-    const res = await axios.get("http://localhost:5001/data");
+    const res = await axios.get(`${API_BASE_URL.replace('/api', '')}/data`);
     const values = res.data.data;
 
     // 2. Get prediction (last 5 values)
     const last5 = values.slice(-5);
 
-    const predRes = await axios.post("http://localhost:5001/predict", {
+    const predRes = await axios.post(`${API_BASE_URL.replace('/api', '')}/predict`, {
       values: last5,
       steps: 5,
     });

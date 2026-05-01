@@ -3,6 +3,7 @@ import React from "react";
 
 import { useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../config";
 
 export default function Upload() {
   const [file, setFile] = useState(null);
@@ -11,7 +12,7 @@ export default function Upload() {
     const formData = new FormData();
     formData.append("file", file);
 
-    await axios.post("http://localhost:5001/upload", formData);
+    await axios.post(`${API_BASE_URL.replace('/api', '')}/upload`, formData);
     alert("Dataset uploaded & model trained automatically 🚀");
   };
 

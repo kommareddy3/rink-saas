@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../config";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -9,11 +10,11 @@ export default function Auth() {
   const handleSubmit = async () => {
     try {
       if (isLogin) {
-        const res = await axios.post("http://localhost:5001/api/auth/login", { email, password });
+        const res = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
         localStorage.setItem("token", res.data.token);
         alert("Logged in");
       } else {
-        await axios.post("http://localhost:5001/api/auth/register", { email, password });
+        await axios.post(`${API_BASE_URL}/auth/register`, { email, password });
         alert("Registered");
         setIsLogin(true); // Switch to login after register
       }

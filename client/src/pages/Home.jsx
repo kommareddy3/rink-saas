@@ -5,6 +5,7 @@
 
 import React from "react";
 import logo from "../assets/rink-logo.png";
+import AIAssistant from "../components/AIAssistant";
 
 export default function Home() {
   return (
@@ -187,6 +188,9 @@ export default function Home() {
           <p className="text-sm">Research Innovation & Next-gen Knowledge</p>
         </div>
       </footer>
+
+      {/* AI Assistant */}
+      <AIAssistant />
     </div>
   );
 }
