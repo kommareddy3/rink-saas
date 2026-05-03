@@ -14,6 +14,9 @@ dotenv.config({ path: require("path").resolve(__dirname, ".env") });
 app.use(cors());
 app.use(express.json());
 
+const clientDistPath = path.join(__dirname, "../client/dist");
+app.use(express.static(clientDistPath));
+
 // In-memory user store (temporary)
 const users = [];
 
@@ -155,6 +158,19 @@ RINK specializes in:
 
     res.status(status).json({ error: message });
   }
+});
+
+app.get("/*", (req, res) => {
+  if (
+    req.path.startsWith("/api") ||
+    req.path.startsWith("/upload") ||
+    req.path.startsWith("/train") ||
+    req.path.startsWith("/predict") ||
+    req.path.startsWith("/data")
+  ) {
+    return res.status(404).send("Not found");
+  }
+  res.sendFile(path.join(clientDistPath, "index.html"));
 });
 
 app.listen(5001, () => console.log("Server running on port 5001"));
