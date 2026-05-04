@@ -7,13 +7,6 @@
   "env": {
     "VITE_API_BASE_URL": "https://rinkglobal.com/api"
   },
-  "routes": [
-    {
-      "src": "/(.*)",
-      "destination": "/index.html",
-      "status": 200
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
