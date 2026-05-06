@@ -14,8 +14,8 @@ export default function Contact() {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen">
-      <form onSubmit={handleSubmit} className="bg-white/10 p-8 rounded-xl w-96">
+    <div className="flex justify-center items-center min-h-screen px-4 py-10">
+      <form onSubmit={handleSubmit} className="bg-white/10 p-6 sm:p-8 rounded-3xl w-full max-w-md">
         <h2 className="text-2xl mb-4">Contact RINK Global Services</h2>
 
         <input

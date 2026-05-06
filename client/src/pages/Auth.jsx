@@ -24,8 +24,8 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="bg-white/10 backdrop-blur-xl p-10 rounded-2xl w-96 border border-white/20">
+    <div className="flex justify-center items-center min-h-screen px-4 py-10">
+      <div className="bg-white/10 backdrop-blur-xl p-6 sm:p-10 rounded-3xl w-full max-w-md border border-white/20">
         <div className="flex mb-6">
           <button
             className={`flex-1 py-2 rounded-l-lg ${isLogin ? "bg-blue-500" : "bg-gray-500"}`}

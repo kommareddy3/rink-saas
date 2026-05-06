@@ -11,27 +11,27 @@ export default function Home() {
   return (
     <div className="text-white">
       {/* HERO SECTION */}
-      <section className="text-center py-24 px-6">
+      <section className="text-center py-24 px-4 sm:px-6 lg:px-10">
         <div className="flex flex-col items-center">
           <img src={logo} className="h-20 mb-4" />
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
             RINK
           </h1>
-          <p className="text-sm text-gray-400 mt-2 tracking-widest">
+          <p className="text-sm sm:text-base text-gray-400 mt-2 tracking-widest">
             RESEARCH • INNOVATION • NEXT-GEN KNOWLEDGE
           </p>
         </div>
 
-        <h2 className="text-3xl font-semibold mt-8 max-w-3xl mx-auto">
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold mt-8 max-w-3xl mx-auto">
           AI-Powered Time Series Analytics for Smarter Business Decisions
         </h2>
 
-        <p className="mt-6 text-xl text-gray-300 max-w-2xl mx-auto">
+        <p className="mt-6 text-base sm:text-xl text-gray-300 max-w-2xl mx-auto">
           Transform your data into predictive insights with our advanced LSTM models.
           Upload datasets, train custom models, and get accurate forecasts in real-time.
         </p>
 
-        <div className="mt-10 space-x-4">
+        <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
           <a href="/auth" className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl hover:from-blue-600 hover:to-purple-700 shadow-lg font-semibold transition-all duration-300">
             Start Free Trial
           </a>
@@ -40,7 +40,7 @@ export default function Home() {
           </a>
         </div>
 
-        <div className="mt-12 flex justify-center space-x-8 text-sm text-gray-400">
+        <div className="mt-12 flex flex-col sm:flex-row justify-center items-center gap-3 sm:space-x-8 text-sm text-gray-400">
           <div className="flex items-center">
             <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
             No Setup Required
@@ -57,11 +57,11 @@ export default function Home() {
       </section>
 
       {/* WHAT WE DO */}
-      <section className="px-10 py-20 bg-gradient-to-b from-transparent to-black/20">
+      <section className="px-4 sm:px-6 lg:px-10 py-20 bg-gradient-to-b from-transparent to-black/20">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-bold text-center mb-16">What We Do</h2>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="p-8 rounded-2xl bg-white/10 backdrop-blur-lg border border-white/20 hover:bg-white/15 transition-all duration-300">
               <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-4">
                 <span className="text-2xl">📊</span>
@@ -132,10 +132,10 @@ export default function Home() {
       </section>
 
       {/* USE CASES */}
-      <section className="px-10 py-20">
+      <section className="px-4 sm:px-6 lg:px-10 py-20">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold mb-8">Perfect For</h2>
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
               <h3 className="text-2xl font-semibold mb-4">Financial Forecasting</h3>
               <p className="text-gray-300">
@@ -169,7 +169,7 @@ export default function Home() {
       </section>
 
       {/* CLIENT PORTAL CTA */}
-      <section className="text-center py-20 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+      <section className="text-center py-20 px-4 sm:px-6 lg:px-10 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Data?</h2>
           <p className="text-gray-400 mb-8 text-lg">
@@ -182,7 +182,7 @@ export default function Home() {
       </section>
 
       {/* FOOTER */}
-      <footer className="text-center py-10 border-t border-white/20 text-gray-400">
+      <footer className="text-center py-10 px-4 sm:px-6 lg:px-10 border-t border-white/20 text-gray-400">
         <div className="max-w-4xl mx-auto">
           <p className="mb-4">© {new Date().getFullYear()} RINK Global Services — Intelligent Data Analytics & Prediction Solutions</p>
           <p className="text-sm">Research Innovation & Next-gen Knowledge</p>

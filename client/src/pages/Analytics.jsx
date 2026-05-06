@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
 } from "recharts";
 
 export default function Analytics() {
@@ -110,19 +110,19 @@ export default function Analytics() {
   };
 
   return (
-    <div className="p-10 max-w-6xl mx-auto">
-      <h1 className="text-4xl mb-10 text-center">AI Analytics Workspace</h1>
+    <div className="p-6 sm:p-10 max-w-6xl mx-auto">
+      <h1 className="text-3xl sm:text-4xl mb-10 text-center">AI Analytics Workspace</h1>
 
       {/* Upload Section */}
       <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl mb-8 border border-white/20">
         <h2 className="text-2xl mb-4">📤 Upload Dataset</h2>
         <p className="text-gray-300 mb-4">Upload a CSV file to update your dataset and automatically train the model</p>
-        <div className="flex gap-4 items-center">
+        <div className="flex flex-col gap-4 items-stretch sm:flex-row sm:items-center">
           <input
             type="file"
             accept=".csv"
             onChange={(e) => setFile(e.target.files[0])}
-            className="text-white"
+            className="text-white w-full sm:w-auto"
           />
           <button
             onClick={handleUpload}
@@ -151,12 +151,12 @@ export default function Analytics() {
       <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl mb-8 border border-white/20">
         <h2 className="text-2xl mb-4">🔮 Make Predictions</h2>
         <p className="text-gray-300 mb-4">Enter the last 5 values (comma-separated) to predict the next 5 steps</p>
-        <div className="flex gap-4 items-center mb-4">
+        <div className="flex flex-col gap-4 mb-4 sm:flex-row sm:items-center">
           <input
             placeholder="e.g., 1.2, 3.4, 2.1, 4.5, 3.2"
             value={values}
             onChange={(e) => setValues(e.target.value)}
-            className="flex-1 p-3 rounded bg-black/30 text-white placeholder-gray-400"
+            className="flex-1 p-3 rounded bg-black/30 text-white placeholder-gray-400 w-full"
           />
           <button
             onClick={predict}
@@ -169,7 +169,7 @@ export default function Analytics() {
         {pred && (
           <div className="bg-black/30 p-4 rounded">
             <h3 className="text-lg mb-2">Predictions:</h3>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
               {pred.map((p, i) => (
                 <div key={i} className="text-center p-2 bg-purple-500/20 rounded">
                   <div className="text-sm text-gray-300">Step {i+1}</div>
@@ -186,34 +186,36 @@ export default function Analytics() {
         <h2 className="text-2xl mb-4">📊 Data Visualization</h2>
         <p className="text-gray-300 mb-4">View your actual data and predictions</p>
         {chartData.length > 0 ? (
-          <div className="flex justify-center">
-            <LineChart width={800} height={400} data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="name" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1F2937',
-                  border: '1px solid #374151',
-                  borderRadius: '8px'
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="actual"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: '#3b82f6' }}
-              />
-              <Line
-                type="monotone"
-                dataKey="predicted"
-                stroke="#22c55e"
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                dot={{ fill: '#22c55e' }}
-              />
-            </LineChart>
+          <div className="w-full h-[320px] sm:h-[420px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="name" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1F2937',
+                    border: '1px solid #374151',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="actual"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={{ fill: '#3b82f6' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="predicted"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ fill: '#22c55e' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         ) : (
           <p className="text-center text-gray-400">No data available. Upload a dataset to get started.</p>
