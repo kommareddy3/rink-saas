@@ -1,13 +1,26 @@
 import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 // =========================
 // Navbar.jsx
 // =========================
-import { Link } from "react-router-dom";
 import logo from "../assets/rink-logo.png";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, displayName, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      alert(error.message || "Logout failed");
+      return;
+    }
+    setMenuOpen(false);
+    navigate("/auth");
+  };
 
   return (
     <header className="bg-white/10 backdrop-blur-lg border-b border-white/20">
@@ -40,15 +53,28 @@ export default function Navbar() {
           <Link to="/" className="hover:text-blue-400" onClick={() => setMenuOpen(false)}>
             Home
           </Link>
-          <Link to="/auth" className="hover:text-blue-400" onClick={() => setMenuOpen(false)}>
-            Auth
-          </Link>
+          {!user && (
+            <Link to="/auth" className="hover:text-blue-400" onClick={() => setMenuOpen(false)}>
+              Auth
+            </Link>
+          )}
           <Link to="/analytics" className="hover:text-blue-400" onClick={() => setMenuOpen(false)}>
             Analytics
           </Link>
           <Link to="/contact" className="hover:text-blue-400" onClick={() => setMenuOpen(false)}>
             Contact
           </Link>
+          {user && (
+            <>
+              <span className="hidden md:inline text-sm text-gray-200">Hi, {displayName}</span>
+              <button
+                className="rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </>
+          )}
         </nav>
       </div>
     </header>

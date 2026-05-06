@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../config";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
 } from "recharts";
@@ -19,7 +20,7 @@ export default function Analytics() {
 
   const fetchData = async () => {
     try {
-      const res = await axios.get("http://localhost:5001/data");
+      const res = await axios.get(`${API_BASE_URL}/data`);
       const values = res.data.data;
 
       let formatted = values.map((val, i) => ({
@@ -45,7 +46,7 @@ export default function Analytics() {
       const formData = new FormData();
       formData.append("file", file);
 
-      await axios.post("http://localhost:5001/upload", formData);
+      await axios.post(`${API_BASE_URL}/upload`, formData);
       alert("Dataset uploaded & model trained automatically 🚀");
       await fetchData(); // Refresh chart data
     } catch (err) {
@@ -59,7 +60,7 @@ export default function Analytics() {
   const train = async () => {
     setIsTraining(true);
     try {
-      const res = await axios.post("http://localhost:5001/train");
+      const res = await axios.post(`${API_BASE_URL}/train`);
       alert(`Model trained! RMSE: ${res.data.rmse} | MAE: ${res.data.mae}`);
     } catch (err) {
       console.error(err);
@@ -79,7 +80,7 @@ export default function Analytics() {
     try {
       const arr = values.split(",").map(Number);
 
-      const res = await axios.post("http://localhost:5001/predict", {
+      const res = await axios.post(`${API_BASE_URL}/predict`, {
         values: arr,
         steps: 5,
       });

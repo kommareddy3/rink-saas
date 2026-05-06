@@ -4,10 +4,13 @@
 // =========================
 
 import React from "react";
+import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/rink-logo.png";
 import AIAssistant from "../components/AIAssistant";
 
 export default function Home() {
+  const { user, displayName } = useAuth();
+
   return (
     <div className="text-white">
       {/* HERO SECTION */}
@@ -21,6 +24,12 @@ export default function Home() {
             RESEARCH • INNOVATION • NEXT-GEN KNOWLEDGE
           </p>
         </div>
+
+        {user && (
+          <p className="text-base sm:text-lg text-blue-300 font-medium mt-6">
+            Hi {displayName}, welcome back to RINK Global Services.
+          </p>
+        )}
 
         <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold mt-8 max-w-3xl mx-auto">
           AI-Powered Time Series Analytics for Smarter Business Decisions

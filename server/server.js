@@ -7,6 +7,10 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const Groq = require("groq-sdk");
 const dotenv = require("dotenv");
+
+// Load environment variables
+dotenv.config();
+
 const app = express();
 
 dotenv.config({ path: require("path").resolve(__dirname, ".env") });
@@ -21,7 +25,7 @@ app.use(express.static(clientDistPath));
 const users = [];
 
 // JWT secret (use env in production)
-const JWT_SECRET = "your-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret";
 
 // Initialize Groq (only if API key is available)
 let groq = null;
@@ -76,18 +80,18 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 app.post("/train", async (req, res) => {
-  const r = await axios.post("http://localhost:8000/train");
+  const r = await axios.post(`${process.env.ML_API_URL}/train`);
   res.json(r.data);
 });
 
 app.post("/predict", async (req, res) => {
-  const r = await axios.post("http://localhost:8000/predict", req.body);
+  const r = await axios.post(`${process.env.ML_API_URL}/predict`, req.body);
   res.json(r.data);
 });
 
 app.get("/data", async (req, res) => {
   try {
-    const r = await axios.get("http://localhost:8000/data");
+    const r = await axios.get(`${process.env.ML_API_URL}/data`);
     res.json(r.data);
   } catch (err) {
     console.error(err);
@@ -98,7 +102,7 @@ app.get("/data", async (req, res) => {
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     // ✅ Automatically train after upload
-    await axios.post("http://localhost:8000/train");
+    await axios.post(`${process.env.ML_API_URL}/train`);
 
     res.json({ message: "Uploaded + Model trained 🚀" });
   } catch (err) {

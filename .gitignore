@@ -8,6 +8,12 @@
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.test
+.env.build
+client/.env.example
+server/.env.example
 *.log
 npm-debug.log*
 yarn-debug.log*

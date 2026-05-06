@@ -2,13 +2,14 @@ import React from "react";
 
 import axios from "axios";
 import { useState } from "react";
+import API_BASE_URL from "../config";
 
 export default function ML() {
   const [values, setValues] = useState("");
   const [pred, setPred] = useState(null);
 
 const train = async () => {
-  const res = await axios.post("http://localhost:5001/train");
+  const res = await axios.post(`${API_BASE_URL}/train`);
 
   alert(`RMSE: ${res.data.rmse} | MAE: ${res.data.mae}`);
 };
@@ -16,7 +17,7 @@ const train = async () => {
 const predict = async () => {
   const arr = values.split(",").map(Number);
 
-  const res = await axios.post("http://localhost:5001/predict", {
+  const res = await axios.post(`${API_BASE_URL}/predict`, {
     values: arr,
     steps: 5,
   });
