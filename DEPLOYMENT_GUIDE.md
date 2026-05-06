@@ -2,7 +2,7 @@
 
 ## Architecture Options
 
-You have 3 ways to deploy your RINK app:
+You have 3 ways to deploy your RINK Global Services app:
 
 ### Option 1: **Single Domain (Recommended for starting)**
 - Frontend + Backend both on `rinkglobal.com`
@@ -41,7 +41,7 @@ npm run build  # Creates optimized dist/
 
 Update `server/.env`:
 ```bash
-OPENAI_API_KEY=your_actual_key
+GROQ_API_KEY=your_actual_key
 NODE_ENV=production
 PORT=5001
 ```
@@ -85,14 +85,14 @@ sudo npm install -g pm2
 **Clone your repo:**
 ```bash
 git clone <your-repo>
-cd rink-saas-v3-ml
+cd rink-global-services
 ```
 
 **Setup Backend:**
 ```bash
 cd server
 npm install
-pm2 start server.js --name "rink-backend" --instances max
+pm2 start server.js --name "rink-global-services" --instances max
 pm2 save
 pm2 startup
 ```
@@ -120,7 +120,7 @@ server {
     server_name rinkglobal.com www.rinkglobal.com;
     
     # Serve frontend
-    root /path/to/rink-saas-v3-ml/client/dist;
+    root /path/to/rink-global-services/client/dist;
     index index.html;
     
     # SPA routing - all requests go to index.html
@@ -210,7 +210,7 @@ curl -X POST https://rinkglobal.com/api/auth/login \
 
 **Server (.env):**
 ```bash
-OPENAI_API_KEY=sk-...
+GROQ_API_KEY=sk-...
 NODE_ENV=production
 JWT_SECRET=your-secret-key
 ```

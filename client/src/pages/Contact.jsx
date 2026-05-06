@@ -16,7 +16,7 @@ export default function Contact() {
   return (
     <div className="flex justify-center items-center min-h-screen">
       <form onSubmit={handleSubmit} className="bg-white/10 p-8 rounded-xl w-96">
-        <h2 className="text-2xl mb-4">Contact RINK</h2>
+        <h2 className="text-2xl mb-4">Contact RINK Global Services</h2>
 
         <input
           className="w-full mb-3 p-2 bg-black/30 rounded"

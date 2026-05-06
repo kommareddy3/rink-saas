@@ -20,10 +20,10 @@ cd ~/Downloads/rink-saas-v3-ml
 # Initialize git (if not already)
 git init
 git add .
-git commit -m "Initial commit - RINK SaaS app"
+git commit -m "Initial commit - RINK Global Services app"
 
 # Add remote (replace with your repo)
-git remote add origin https://github.com/YOUR_USERNAME/rink-saas.git
+git remote add origin https://github.com/YOUR_USERNAME/rink-global-services.git
 git branch -M main
 git push -u origin main
 ```
@@ -47,10 +47,10 @@ git push -u origin main
 1. **Log in to Vercel** → https://vercel.com/dashboard
 2. Click **"New Project"** button
 3. **Select GitHub repository**
-   - Search for `rink-saas` or your repo name
+   - Search for `rink-global-services` or your repo name
    - Click **"Import"**
 4. **Configure Project Settings:**
-   - **Project Name:** `rink-saas` (or any name)
+   - **Project Name:** `rink-global-services` (or any name)
    - **Framework Preset:** `Vite`
    - **Root Directory:** `./client` (⚠️ Important!)
    - **Build Command:** `npm run build`
@@ -75,7 +75,7 @@ git push -u origin main
 
 2. **Navigate to client folder:**
    ```bash
-   cd ~/Downloads/rink-saas-v3-ml/client
+   cd ~/Downloads/rink-global-services/client
    ```
 
 3. **Deploy:**
@@ -89,7 +89,7 @@ git push -u origin main
    - Select framework: `Vite`
    - Confirm settings
 
-5. ✅ Deployment complete! You'll get a URL like `https://rink-saas.vercel.app`
+5. ✅ Deployment complete! You'll get a URL like `https://rink-global-services.vercel.app`
 
 ---
 

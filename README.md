@@ -1,8 +1,10 @@
-# 🚀 RINK (Research Innovation & Next-gen Knowledge)
+# 🚀 RINK Global Services
 
-## 🧠 AI SaaS Platform for Time-Series Forecasting & Data Intelligence
+### Research Innovation & Next-gen Knowledge – Enterprise AI Solutions
 
-RINK is a full-stack AI-powered SaaS platform that enables users to upload datasets, train machine learning models, and generate real-time predictions with interactive visualizations. It is designed to bridge the gap between data, machine learning, and scalable web applications.
+## 🧠 Enterprise AI Platform for Time-Series Forecasting & Data Intelligence
+
+RINK Global Services is a comprehensive enterprise AI platform that empowers organizations to upload datasets, train advanced machine learning models, and generate real-time predictions with interactive visualizations. Designed to bridge the gap between data science and scalable enterprise applications.
 
 ---
 
@@ -79,7 +81,7 @@ FastAPI (Machine Learning Service)
 ## 📁 Project Structure
 
 ```
-rink-saas/
+rink-global-services/
 │
 ├── client/        # React frontend
 ├── server/        # Node.js backend
@@ -95,8 +97,8 @@ rink-saas/
 ### 1️⃣ Clone Repository
 
 ```
-git clone https://github.com/your-username/rink-saas.git
-cd rink-saas
+git clone https://github.com/your-username/rink-global-services.git
+cd rink-global-services
 ```
 
 ---
@@ -164,14 +166,14 @@ Output: [7.3, 7.35, 7.4, 7.45, 7.5]
 * ☁️ Cloud deployment (AWS / Vercel / Render)
 * 📊 Advanced models (XGBoost, LSTM)
 * 📁 Dataset preview & validation
-* 💳 Subscription-based SaaS model
+* 💳 Flexible enterprise licensing model
 
 ---
 
 ## 👨‍💻 Author
 
-**RINK Development Team**
-Focused on AI, Machine Learning, and Next-gen SaaS systems
+**RINK Global Services Team**
+Specializing in AI, Machine Learning, and Enterprise Data Intelligence Solutions
 
 ---
 

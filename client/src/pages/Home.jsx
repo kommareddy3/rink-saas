@@ -173,7 +173,7 @@ export default function Home() {
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Data?</h2>
           <p className="text-gray-400 mb-8 text-lg">
-            Join thousands of businesses using RINK to make smarter decisions with AI-powered predictions.
+            Partner with RINK Global Services to transform your data into actionable intelligence with advanced AI analytics.
           </p>
           <a href="/analytics" className="inline-block px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl hover:from-blue-600 hover:to-purple-700 font-semibold shadow-lg transition-all duration-300">
             Access Analytics Platform
@@ -184,7 +184,7 @@ export default function Home() {
       {/* FOOTER */}
       <footer className="text-center py-10 border-t border-white/20 text-gray-400">
         <div className="max-w-4xl mx-auto">
-          <p className="mb-4">© {new Date().getFullYear()} RINK — AI-Powered Time Series Analytics Platform</p>
+          <p className="mb-4">© {new Date().getFullYear()} RINK Global Services — Intelligent Data Analytics & Prediction Solutions</p>
           <p className="text-sm">Research Innovation & Next-gen Knowledge</p>
         </div>
       </footer>

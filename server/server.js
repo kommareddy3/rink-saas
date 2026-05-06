@@ -5,7 +5,7 @@ const multer = require("multer");
 const path = require("path");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const OpenAI = require("openai");
+const Groq = require("groq-sdk");
 const dotenv = require("dotenv");
 const app = express();
 
@@ -23,14 +23,14 @@ const users = [];
 // JWT secret (use env in production)
 const JWT_SECRET = "your-secret-key";
 
-// Initialize OpenAI (only if API key is available)
-let openai = null;
-if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your-api-key-here") {
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+// Initialize Groq (only if API key is available)
+let groq = null;
+if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "your-api-key-here") {
+  groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
   });
 } else {
-  console.warn("OpenAI API key is not set or invalid. AI assistant will remain unavailable.");
+  console.warn("Groq API key is not set or invalid. AI assistant will remain unavailable.");
 }
 
 // storage config
@@ -45,7 +45,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 app.get("/", (req, res) => {
-  res.send("RINK Backend is running ✅");
+  res.send("RINK Global Services Backend is running ✅");
 });
 
 // Auth routes
@@ -115,8 +115,8 @@ app.post("/api/ai-assistant", async (req, res) => {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await groq.chat.completions.create({
+      model: "mixtral-8x7b-32768",
       temperature: 0.7,
       max_tokens: 500,
       messages: [
@@ -160,7 +160,8 @@ RINK specializes in:
   }
 });
 
-app.get("/*", (req, res) => {
+// Fallback to the front-end app for non-API routes when client build exists
+app.use((req, res, next) => {
   if (
     req.path.startsWith("/api") ||
     req.path.startsWith("/upload") ||
@@ -168,7 +169,7 @@ app.get("/*", (req, res) => {
     req.path.startsWith("/predict") ||
     req.path.startsWith("/data")
   ) {
-    return res.status(404).send("Not found");
+    return next();
   }
   res.sendFile(path.join(clientDistPath, "index.html"));
 });
