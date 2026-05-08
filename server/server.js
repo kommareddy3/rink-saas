@@ -1,181 +1,303 @@
+/**
+ * RINK Global Services — API Gateway
+ * ----------------------------------
+ * Express server that:
+ *   - serves the React build (when present),
+ *   - proxies dataset / training / prediction calls to the FastAPI ML service,
+ *   - hosts a Groq-backed AI assistant endpoint,
+ *   - verifies Supabase access tokens on protected routes.
+ *
+ * All authentication is delegated to Supabase. There is intentionally no
+ * local user store.
+ */
+
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
+const FormData = require("form-data");
 const Groq = require("groq-sdk");
+const { createClient } = require("@supabase/supabase-js");
 const dotenv = require("dotenv");
 
-// Load environment variables
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 const app = express();
 
-dotenv.config({ path: require("path").resolve(__dirname, ".env") });
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
 
-app.use(cors());
-app.use(express.json());
+const PORT = parseInt(process.env.PORT || "5001", 10);
+const ML_API_URL = process.env.ML_API_URL || "http://localhost:8000";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
-const clientDistPath = path.join(__dirname, "../client/dist");
-app.use(express.static(clientDistPath));
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
+  "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
-// In-memory user store (temporary)
-const users = [];
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
-// JWT secret (use env in production)
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret";
-
-// Initialize Groq (only if API key is available)
-let groq = null;
-if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "your-api-key-here") {
-  groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY,
-  });
-} else {
-  console.warn("Groq API key is not set or invalid. AI assistant will remain unavailable.");
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn(
+    "[startup] SUPABASE_URL / SUPABASE_ANON_KEY not set — protected routes will reject every request."
+  );
 }
 
-// storage config
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, "../ml_api")); 
-  },
-  filename: function (req, file, cb) {
-    cb(null, "uploaded.csv");
-  },
-});
+const supabase =
+  SUPABASE_URL && SUPABASE_ANON_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
-const upload = multer({ storage });
-app.get("/", (req, res) => {
-  res.send("RINK Global Services Backend is running ✅");
-});
+let groq = null;
+if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "your-api-key-here") {
+  groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+} else {
+  console.warn("[startup] GROQ_API_KEY missing — /api/ai-assistant will return 503.");
+}
 
-// Auth routes
-app.post("/api/auth/register", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ message: "Email and password required" });
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
 
-  const existingUser = users.find(u => u.email === email);
-  if (existingUser) return res.status(400).json({ message: "User already exists" });
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // Allow same-origin / curl (no Origin header) and explicitly listed origins.
+      if (!origin) return cb(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  users.push({ email, password: hashedPassword });
-  res.status(201).json({ message: "User registered" });
-});
+app.use(express.json({ limit: "1mb" }));
 
-app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ message: "Email and password required" });
-
-  const user = users.find(u => u.email === email);
-  if (!user) return res.status(400).json({ message: "Invalid credentials" });
-
-  const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid) return res.status(400).json({ message: "Invalid credentials" });
-
-  const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: "1h" });
-  res.json({ token });
-});
-
-app.post("/train", async (req, res) => {
-  const r = await axios.post(`${process.env.ML_API_URL}/train`);
-  res.json(r.data);
-});
-
-app.post("/predict", async (req, res) => {
-  const r = await axios.post(`${process.env.ML_API_URL}/predict`, req.body);
-  res.json(r.data);
-});
-
-app.get("/data", async (req, res) => {
-  try {
-    const r = await axios.get(`${process.env.ML_API_URL}/data`);
-    res.json(r.data);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Data fetch error");
+// Verifies the Authorization: Bearer <supabase_access_token> header.
+async function requireAuth(req, res, next) {
+  if (!supabase) {
+    return res.status(503).json({ error: "Auth service not configured" });
   }
-});
-
-app.post("/upload", upload.single("file"), async (req, res) => {
-  try {
-    // ✅ Automatically train after upload
-    await axios.post(`${process.env.ML_API_URL}/train`);
-
-    res.json({ message: "Uploaded + Model trained 🚀" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Upload or training failed");
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    return res.status(401).json({ error: "Missing bearer token" });
   }
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+    req.user = data.user;
+    return next();
+  } catch (err) {
+    console.error("[auth] verification failed:", err?.message || err);
+    return res.status(401).json({ error: "Token verification failed" });
+  }
+}
+
+// Multer in-memory: required because Vercel's filesystem is read-only.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
 });
+
+// Optionally serve the built frontend if a sibling client/dist exists.
+const clientDistPath = path.join(__dirname, "../client/dist");
+app.use(express.static(clientDistPath, { fallthrough: true }));
+
+// ---------------------------------------------------------------------------
+// Public routes
+// ---------------------------------------------------------------------------
+
+app.get("/", (_req, res) => {
+  res.json({ service: "RINK Global Services API", status: "ok" });
+});
+
+app.get("/api/health", async (_req, res) => {
+  let mlStatus = "unknown";
+  try {
+    const r = await axios.get(`${ML_API_URL}/health`, { timeout: 4000 });
+    mlStatus = r.data?.status || "ok";
+  } catch (err) {
+    mlStatus = `unreachable (${err?.code || err?.message || "error"})`;
+  }
+  res.json({
+    api: "ok",
+    ml: mlStatus,
+    groq: groq ? "configured" : "missing",
+    auth: supabase ? "configured" : "missing",
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AI assistant (Groq)
+// ---------------------------------------------------------------------------
 
 app.post("/api/ai-assistant", async (req, res) => {
+  if (!groq) {
+    return res
+      .status(503)
+      .json({ error: "AI assistant is not configured on this deployment." });
+  }
+
+  const { message } = req.body || {};
+  if (!message || typeof message !== "string" || !message.trim()) {
+    return res.status(400).json({ error: "Field 'message' is required." });
+  }
+  if (message.length > 4000) {
+    return res.status(413).json({ error: "Message too long (max 4000 chars)." });
+  }
+
   try {
-    const { message } = req.body;
-
-    if (!message) {
-      return res.status(400).json({ error: "Message is required" });
-    }
-
     const completion = await groq.chat.completions.create({
-      model: "mixtral-8x7b-32768",
+      model: GROQ_MODEL,
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 600,
       messages: [
         {
           role: "system",
-          content: `You are RINK AI Assistant, an expert in AI, machine learning, and time series analytics. You help users understand:
+          content: `You are RINK AI Assistant, an expert in machine learning and time-series analytics.
+You help users understand:
+- Time-series forecasting techniques (gradient boosting, ARIMA, Prophet, LSTM, etc.)
+- Feature engineering with lags and rolling windows
+- Model evaluation (RMSE, MAE, MAPE, backtesting)
+- How to use the RINK platform: upload a CSV, train a model, and request multi-step forecasts
 
-- AI and machine learning concepts
-- Time series prediction models (LSTM, ARIMA, Prophet, etc.)
-- Data preprocessing and feature engineering
-- Model selection and evaluation
-- RINK platform features and capabilities
-- Best practices for predictive analytics
-
-Be helpful, accurate, and encouraging. Keep responses concise but informative. If users ask about specific models or techniques, explain them clearly with practical examples when relevant.
-
-RINK specializes in:
-- LSTM neural networks for time series prediction
-- Real-time forecasting
-- Interactive data visualization
-- Automated model training
-- CSV data upload and processing`
+Keep replies concise, accurate, and practical. Use small examples where helpful.`,
         },
-        { role: "user", content: message }
-      ]
+        { role: "user", content: message },
+      ],
     });
 
-    const response = completion.choices[0].message.content;
+    const response = completion.choices?.[0]?.message?.content?.trim() || "";
     res.json({ response });
-
   } catch (error) {
-    console.error("AI Assistant error:", error);
-
-    const status = error?.response?.status || 500;
-    const message =
-      error?.response?.data?.error?.message ||
-      error?.message ||
-      "Sorry, I'm having trouble processing your request right now. Please try again later.";
-
-    res.status(status).json({ error: message });
+    console.error("[ai-assistant] error:", error?.message || error);
+    const status = error?.status || error?.response?.status || 500;
+    res.status(status).json({
+      error:
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        "Sorry, I'm having trouble processing your request right now.",
+    });
   }
 });
 
-// Fallback to the front-end app for non-API routes when client build exists
-app.use((req, res, next) => {
-  if (
-    req.path.startsWith("/api") ||
-    req.path.startsWith("/upload") ||
-    req.path.startsWith("/train") ||
-    req.path.startsWith("/predict") ||
-    req.path.startsWith("/data")
-  ) {
-    return next();
+// ---------------------------------------------------------------------------
+// Protected ML routes (auth required)
+// ---------------------------------------------------------------------------
+
+app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded (field name 'file')." });
   }
-  res.sendFile(path.join(clientDistPath, "index.html"));
+  try {
+    // Forward the file to the ML service as multipart, then auto-train.
+    const fd = new FormData();
+    fd.append("file", req.file.buffer, {
+      filename: req.file.originalname || "uploaded.csv",
+      contentType: req.file.mimetype || "text/csv",
+    });
+
+    await axios.post(`${ML_API_URL}/upload`, fd, {
+      headers: fd.getHeaders(),
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 60_000,
+    });
+
+    const trainRes = await axios.post(`${ML_API_URL}/train`, null, { timeout: 120_000 });
+    res.json({ message: "Uploaded and trained successfully.", training: trainRes.data });
+  } catch (err) {
+    handleProxyError(err, res, "Upload or training failed");
+  }
 });
 
-app.listen(5001, () => console.log("Server running on port 5001"));
+app.post("/api/train", requireAuth, async (_req, res) => {
+  try {
+    const r = await axios.post(`${ML_API_URL}/train`, null, { timeout: 120_000 });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Training failed");
+  }
+});
+
+app.post("/api/predict", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.post(`${ML_API_URL}/predict`, req.body, { timeout: 30_000 });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Prediction failed");
+  }
+});
+
+app.get("/api/data", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.get(`${ML_API_URL}/data`, {
+      params: req.query,
+      timeout: 15_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Data fetch failed");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// SPA fallback (only when bundle exists)
+// ---------------------------------------------------------------------------
+
+app.get(/^\/(?!api\/).*/, (_req, res, next) => {
+  res.sendFile(path.join(clientDistPath, "index.html"), (err) => {
+    if (err) next();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error handling
+// ---------------------------------------------------------------------------
+
+function handleProxyError(err, res, fallback) {
+  console.error(`[proxy] ${fallback}:`, err?.message || err);
+  if (err?.response) {
+    return res
+      .status(err.response.status || 502)
+      .json(err.response.data || { error: fallback });
+  }
+  if (err?.code === "ECONNREFUSED" || err?.code === "ENOTFOUND") {
+    return res.status(502).json({ error: "ML service is unreachable." });
+  }
+  return res.status(500).json({ error: fallback });
+}
+
+// Express-level error handler (CORS rejections, multer size limits, etc.)
+app.use((err, _req, res, _next) => {
+  if (err?.message?.startsWith?.("Origin ")) {
+    return res.status(403).json({ error: err.message });
+  }
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({ error: "File too large (max 50MB)." });
+  }
+  console.error("[error]", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// ---------------------------------------------------------------------------
+// Bootstrap
+// ---------------------------------------------------------------------------
+
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`[startup] RINK API listening on :${PORT}`);
+    console.log(`[startup] ML_API_URL=${ML_API_URL}`);
+    console.log(`[startup] CORS origins: ${ALLOWED_ORIGINS.join(", ")}`);
+  });
+}

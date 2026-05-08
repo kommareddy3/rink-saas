@@ -1,234 +1,139 @@
-# Deployment Guide for rinkglobal.com
+# Deploying RINK Global Services to rinkglobal.com
 
-## Architecture Options
+This guide assumes you own `rinkglobal.com` and have GitHub, Vercel, Render,
+Supabase, and Groq accounts.
 
-You have 3 ways to deploy your RINK Global Services app:
+You will deploy three services:
 
-### Option 1: **Single Domain (Recommended for starting)**
-- Frontend + Backend both on `rinkglobal.com`
-- Frontend served from root `/`
-- Backend API served from `/api` prefix
-- Simpler DNS setup, easier CORS handling
+| Service       | Hosting | URL (suggested)              |
+| ------------- | ------- | ---------------------------- |
+| Frontend      | Vercel  | `https://rinkglobal.com`     |
+| API gateway   | Vercel  | `https://api.rinkglobal.com` |
+| ML service    | Render  | `https://rink-ml.onrender.com` (kept private; only the gateway calls it) |
 
-### Option 2: **Subdomain Split**
-- Frontend on `rinkglobal.com`
-- Backend API on `api.rinkglobal.com`
-- More scalable, separate backend scaling
-
-### Option 3: **Separate Services**
-- Frontend on `rinkglobal.com` (Vercel/Netlify)
-- Backend on separate service (Heroku/Railway/DigitalOcean)
-- Most flexible but requires CORS configuration
-
----
-
-## Step-by-Step Setup (Option 1 - Single Domain)
-
-### 1. **Update Client Configuration**
-
-Create `.env.local` in `client/`:
-```bash
-VITE_API_BASE_URL=https://rinkglobal.com/api
-```
-
-Or update production build:
-```bash
-cd client
-npm run build  # Creates optimized dist/
-```
-
-### 2. **Configure Backend**
-
-Update `server/.env`:
-```bash
-GROQ_API_KEY=your_actual_key
-NODE_ENV=production
-PORT=5001
-```
-
-Ensure your backend will accept requests to `/api/*` routes.
-
-### 3. **DNS Configuration**
-
-In your domain registrar (where you bought rinkglobal.com):
-
-| Type  | Name                | Value                    |
-|-------|---------------------|--------------------------|
-| A     | rinkglobal.com      | Your_Server_IP_Address   |
-| A     | www                 | Your_Server_IP_Address   |
-| CNAME | api                 | rinkglobal.com           |
-
-### 4. **Server Setup (Choose hosting platform)**
-
-#### **Option A: Vercel/Netlify (Frontend) + Heroku/Railway (Backend)**
-- **Frontend:** Deploy `client/dist/` to Vercel/Netlify
-  ```bash
-  npm install -g vercel
-  cd client
-  vercel --prod
-  ```
-- **Backend:** Deploy to Railway/Heroku
-  ```bash
-  # Railway recommended
-  # Connect your GitHub repo and deploy
-  ```
-- Update `.env.local` with backend URL
-
-#### **Option B: Single VPS (DigitalOcean/Linode/AWS)**
-
-**Install Node.js and PM2:**
-```bash
-sudo apt update && sudo apt install nodejs npm
-sudo npm install -g pm2
-```
-
-**Clone your repo:**
-```bash
-git clone <your-repo>
-cd rink-global-services
-```
-
-**Setup Backend:**
-```bash
-cd server
-npm install
-pm2 start server.js --name "rink-global-services" --instances max
-pm2 save
-pm2 startup
-```
-
-**Setup Frontend:**
-```bash
-cd ../client
-npm install
-npm run build
-
-# Install Nginx
-sudo apt install nginx
-
-# Create Nginx config
-sudo nano /etc/nginx/sites-available/rinkglobal.com
-```
-
-**Nginx Configuration:**
-```nginx
-upstream backend {
-    server localhost:5001;
-}
-
-server {
-    server_name rinkglobal.com www.rinkglobal.com;
-    
-    # Serve frontend
-    root /path/to/rink-global-services/client/dist;
-    index index.html;
-    
-    # SPA routing - all requests go to index.html
-    location / {
-        try_files $uri /index.html;
-    }
-    
-    # Backend API proxy
-    location /api/ {
-        proxy_pass http://backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    
-    # Other backend endpoints (upload, train, predict, data)
-    location /upload {
-        proxy_pass http://backend;
-    }
-    
-    location /train {
-        proxy_pass http://backend;
-    }
-    
-    location /predict {
-        proxy_pass http://backend;
-    }
-    
-    location /data {
-        proxy_pass http://backend;
-    }
-    
-    # SSL (after getting certificate)
-    listen 443 ssl http2;
-    ssl_certificate /etc/letsencrypt/live/rinkglobal.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/rinkglobal.com/privkey.pem;
-}
-
-# Redirect HTTP to HTTPS
-server {
-    listen 80;
-    server_name rinkglobal.com www.rinkglobal.com;
-    return 301 https://$server_name$request_uri;
-}
-```
-
-**Enable and test:**
-```bash
-sudo ln -s /etc/nginx/sites-available/rinkglobal.com /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-**Get SSL Certificate (Let's Encrypt):**
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot certonly --nginx -d rinkglobal.com -d www.rinkglobal.com
-```
-
----
-
-## 5. **Testing**
-
-After deployment, test these URLs:
+## 0. One-time prep
 
 ```bash
+git init
+git add .
+git commit -m "Initial production-ready commit"
+git remote add origin git@github.com:YOUR_USER/rink-saas-v3-ml.git
+git push -u origin main
+```
+
+Then **rotate the Groq API key**: go to <https://console.groq.com>, revoke the
+old key, generate a new one. The old key was in `server/.env` on disk — treat
+it as compromised.
+
+## 1. Deploy the ML service to Render
+
+1. Go to <https://render.com> → **New** → **Blueprint**.
+2. Connect your GitHub repo.
+3. Render reads `ml_api/render.yaml` and proposes a `rink-ml` web service.
+4. Click **Apply**.
+5. When the build finishes, copy the service URL — e.g. `https://rink-ml.onrender.com`.
+6. Verify it is up: `curl https://rink-ml.onrender.com/health`.
+
+The `render.yaml` mounts a 1 GB disk at `/var/data` so the uploaded CSV and
+trained model persist across restarts. Free tier works for testing; upgrade to
+Starter to keep the service warm.
+
+## 2. Deploy the API gateway to Vercel
+
+1. <https://vercel.com> → **Add New Project** → import the same GitHub repo.
+2. **Project name:** `rink-api`.
+3. **Root directory:** leave at repo root.
+4. **Framework preset:** Other.
+5. **Build / Install commands:** leave the defaults from `vercel.json`.
+6. **Environment variables** (Production scope):
+
+   | Key                    | Value                                                              |
+   | ---------------------- | ------------------------------------------------------------------ |
+   | `ML_API_URL`           | The Render URL from step 1                                         |
+   | `GROQ_API_KEY`         | Your **new** Groq key                                              |
+   | `GROQ_MODEL`           | `llama-3.3-70b-versatile` (optional)                               |
+   | `SUPABASE_URL`         | `https://YOUR-REF.supabase.co`                                     |
+   | `SUPABASE_ANON_KEY`    | Supabase anon key                                                  |
+   | `ALLOWED_ORIGINS`      | `https://rinkglobal.com,https://www.rinkglobal.com`                |
+
+7. Deploy. Note the URL Vercel gives you.
+8. **Add custom domain:** Settings → Domains → add `api.rinkglobal.com`.
+   Vercel will show you the DNS record to create (usually a CNAME to
+   `cname.vercel-dns.com`).
+
+## 3. Deploy the frontend to Vercel
+
+1. <https://vercel.com> → **Add New Project** → import the same GitHub repo.
+2. **Project name:** `rink-web`.
+3. **Root directory:** `client`.
+4. **Framework preset:** Vite.
+5. **Environment variables** (Production scope):
+
+   | Key                       | Value                                |
+   | ------------------------- | ------------------------------------ |
+   | `VITE_API_BASE_URL`       | `https://api.rinkglobal.com`         |
+   | `VITE_SUPABASE_URL`       | `https://YOUR-REF.supabase.co`       |
+   | `VITE_SUPABASE_ANON_KEY`  | Supabase anon key                    |
+
+6. Deploy.
+7. **Add custom domain:** Settings → Domains → add `rinkglobal.com` and
+   `www.rinkglobal.com`. Follow Vercel's DNS instructions (typically point your
+   apex `A`/`ALIAS` records and `www` `CNAME` at Vercel).
+
+## 4. Configure Supabase
+
+1. <https://app.supabase.com> → your project → **Authentication → URL
+   Configuration**.
+2. Set **Site URL** to `https://rinkglobal.com`.
+3. Add `https://rinkglobal.com/**` to **Redirect URLs** (and a localhost entry
+   if you want to keep dev working).
+4. Confirm email signups work end-to-end.
+
+## 5. Smoke test
+
+```bash
+# Health
+curl https://api.rinkglobal.com/api/health
+# → { api: "ok", ml: "ok", groq: "configured", auth: "configured" }
+
 # Frontend loads
-curl https://rinkglobal.com
-
-# Backend responds
-curl https://rinkglobal.com/
-
-# API routes work
-curl -X POST https://rinkglobal.com/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"test"}'
+open https://rinkglobal.com
 ```
 
----
+In the browser:
 
-## 6. **Environment Variables Needed**
+1. Sign up / log in.
+2. Visit `/analytics`.
+3. Upload a CSV with a numeric column.
+4. Confirm metrics appear and predictions render on the chart.
+5. Open the AI assistant (bottom-right) and ask a question.
 
-**Server (.env):**
-```bash
-GROQ_API_KEY=sk-...
-NODE_ENV=production
-JWT_SECRET=your-secret-key
-```
+## 6. Things to do before announcing
 
-**Client (.env.local or build-time):**
-```bash
-VITE_API_BASE_URL=https://rinkglobal.com/api
-```
+- [ ] Rotate the Groq key (mentioned in step 0).
+- [ ] Run `git ls-files | grep -E '\.env(\.|$)'` — must return nothing.
+- [ ] Add a real **Privacy Policy** and **Terms** before collecting customer data.
+- [ ] Decide on a paid Render plan to avoid cold starts.
+- [ ] Add Vercel Analytics or another monitoring tool.
+- [ ] Set up Supabase row-level security on any data tables you add.
+- [ ] Configure custom email templates in Supabase (signup confirmation, etc.).
 
----
+## Troubleshooting
 
-## Summary of Changes Made
+**`/api/health` shows `ml: unreachable`**
+The Render service is asleep or crashed. Check Render logs. Confirm
+`ML_API_URL` in Vercel env matches the Render URL exactly (no trailing slash).
 
-✅ Created `client/src/config.js` - Centralized API configuration
-✅ Updated all API calls to use dynamic base URL
-✅ Added `.env.example` for reference
-✅ Client now auto-detects API from same origin
+**`401 Invalid or expired token` from `/api/upload`**
+The frontend isn't sending a Supabase session. Make sure the user is logged
+in. The API gateway calls `supabase.auth.getUser(token)` — confirm
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` in the gateway env match the Supabase
+project the frontend uses.
 
-Now your app will work on:
-- Local: `http://localhost:5173` → `http://localhost:5001`
-- Production: `https://rinkglobal.com` → `https://rinkglobal.com/api`
+**`CORS Origin not allowed`**
+Add the offending origin to `ALLOWED_ORIGINS` in the gateway env vars and
+redeploy.
+
+**`No module named 'statsmodels'`** (or any other ML import error)
+You're on an old commit. The current `ml_api/main.py` does not use
+`statsmodels`. Pull `main`.

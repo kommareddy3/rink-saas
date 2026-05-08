@@ -36,8 +36,9 @@ export default function Home() {
         </h2>
 
         <p className="mt-6 text-base sm:text-xl text-gray-300 max-w-2xl mx-auto">
-          Transform your data into predictive insights with our advanced LSTM models.
-          Upload datasets, train custom models, and get accurate forecasts in real-time.
+          Transform your data into predictive insights with engineered time-series
+          features and gradient-boosting models. Upload a dataset, train, and forecast
+          in real time.
         </p>
 
         <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
@@ -88,8 +89,8 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-3">AI Model Training</h3>
               <p className="text-gray-400">
-                Train custom LSTM neural networks on your specific datasets.
-                Our advanced algorithms optimize for accuracy and computational efficiency.
+                Train gradient-boosting models with automatically engineered lag and
+                rolling-window features, optimized for accuracy on real-world series.
               </p>
             </div>
 
@@ -121,8 +122,8 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-3">Secure & Scalable</h3>
               <p className="text-gray-400">
-                Enterprise-grade security with JWT authentication.
-                Scale from small datasets to big data with our cloud infrastructure.
+                Authentication and identity backed by Supabase. Scale from small
+                datasets to large-volume workloads on our cloud infrastructure.
               </p>
             </div>
 

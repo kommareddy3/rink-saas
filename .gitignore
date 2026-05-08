@@ -1,10 +1,24 @@
 # =========================
-
-# General
+# OS / Editor
+# =========================
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # =========================
+# Logs
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
 
-.DS_Store
+# =========================
+# Secrets — NEVER commit
+# =========================
 .env
 .env.local
 .env.*.local
@@ -12,89 +26,42 @@
 .env.production
 .env.test
 .env.build
-client/.env.example
-server/.env.example
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# NOTE: .env.example files SHOULD be tracked so newcomers can copy them.
 
 # =========================
-
-# Node.js / Backend
-
+# Node.js
 # =========================
-
 node_modules/
-package-lock.json
-dist/
-build/
+# package-lock.json should be committed in production projects; uncomment to ignore.
+# package-lock.json
 
 # =========================
-
-# React / Frontend
-
+# Frontend builds
 # =========================
-
-client/node_modules/
 client/dist/
 client/build/
+.vercel
+.next
 
 # =========================
-
 # Python / FastAPI
-
 # =========================
-
-**pycache**/
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.sqlite3
 *.db
-
-# Virtual environments
-
 venv/
 env/
 .venv/
 
 # =========================
-
-# ML / Data Files
-
+# ML artifacts and uploads
 # =========================
-
-uploaded.csv
-*.csv
-*.xlsx
+ml_api/data/
+ml_api/uploaded.csv
 *.pkl
 *.joblib
 
-# =========================
-
-# OS / Editor
-
-# =========================
-
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# =========================
-
-# Mac / Linux
-
-# =========================
-
-.DS_Store
-
-# =========================
-
-# Logs
-
-# =========================
-
-logs/
-*.log
+# Don't blanket-ignore CSVs — sample datasets may need to ship with the repo.

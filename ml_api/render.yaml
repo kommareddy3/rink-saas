@@ -1,0 +1,21 @@
+# Render Blueprint for the RINK ML service.
+# Deploy by visiting https://render.com → New → Blueprint and pointing at this repo.
+
+services:
+  - type: web
+    name: rink-ml
+    runtime: python
+    plan: starter
+    rootDir: ml_api
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:$PORT main:app
+    envVars:
+      - key: RINK_DATA_DIR
+        value: /var/data
+      - key: ALLOWED_ORIGINS
+        value: https://rinkglobal.com,https://www.rinkglobal.com
+    disk:
+      name: rink-ml-data
+      mountPath: /var/data
+      sizeGB: 1
