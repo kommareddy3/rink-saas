@@ -25,18 +25,29 @@ Then **rotate the Groq API key**: go to <https://console.groq.com>, revoke the
 old key, generate a new one. The old key was in `server/.env` on disk — treat
 it as compromised.
 
-## 1. Deploy the ML service to Render
+## 1. Deploy the ML service to Render (Starter plan)
 
 1. Go to <https://render.com> → **New** → **Blueprint**.
 2. Connect your GitHub repo.
-3. Render reads `ml_api/render.yaml` and proposes a `rink-ml` web service.
-4. Click **Apply**.
+3. Render reads `ml_api/render.yaml` and proposes a `rink-ml` web service on
+   the **Starter** plan with a 1 GB persistent disk attached at `/var/data`.
+4. Click **Apply** and confirm the billing prompt.
 5. When the build finishes, copy the service URL — e.g. `https://rink-ml.onrender.com`.
 6. Verify it is up: `curl https://rink-ml.onrender.com/health`.
 
-The `render.yaml` mounts a 1 GB disk at `/var/data` so the uploaded CSV and
-trained model persist across restarts. Free tier works for testing; upgrade to
-Starter to keep the service warm.
+### What you're paying for
+
+- **Starter plan: $7 / month.** Always-on (no spin-down), 512 MB RAM, 0.5 CPU.
+- **1 GB persistent disk: ~$0.25 / month.** Uploaded CSVs and trained models
+  survive restarts, redeploys, and platform maintenance.
+- **Free custom domain + auto-TLS.** If you want `ml.rinkglobal.com` to point
+  at this service, add it under Settings → Custom Domain.
+
+### Scaling later
+
+If a customer uploads a very large CSV and you see OOM errors in Render logs,
+flip `plan: starter` to `plan: standard` in `render.yaml` and push — that
+gives you 2 GB RAM and 1 full CPU for $25/mo. No code changes needed.
 
 ## 2. Deploy the API gateway to Vercel
 

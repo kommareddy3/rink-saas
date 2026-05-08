@@ -1,5 +1,10 @@
 # Render Blueprint for the RINK ML service.
-# Deploy by visiting https://render.com → New → Blueprint and pointing at this repo.
+# Plan: Starter ($7/mo) — always-on, 512 MB RAM, 0.5 CPU.
+# Persistent disk: 1 GB at /var/data (~$0.25/mo) so uploaded CSVs and trained
+# models survive across restarts and redeploys.
+#
+# Deploy by visiting https://render.com → New → Blueprint and pointing at this
+# repo. Render reads this file and proposes the service automatically.
 
 services:
   - type: web
@@ -11,10 +16,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:$PORT main:app
     envVars:
-      - key: RINK_DATA_DIR
-        value: /var/data
       - key: ALLOWED_ORIGINS
         value: https://rinkglobal.com,https://www.rinkglobal.com
+      - key: RINK_DATA_DIR
+        value: /var/data
     disk:
       name: rink-ml-data
       mountPath: /var/data

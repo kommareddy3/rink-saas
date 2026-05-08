@@ -21,7 +21,7 @@ React (Vite) ── HTTPS ──► Express API gateway ── HTTPS ──► F
 | API gateway  | Node.js 18+, Express, Multer (in-memory)            |
 | AI assistant | Groq (Llama-3.3-70B by default)                     |
 | ML service   | FastAPI, scikit-learn (Gradient Boosting), pandas   |
-| Hosting      | Vercel (frontend + gateway), Render (ML service)    |
+| Hosting      | Vercel (frontend + gateway), Render Starter (ML)    |
 
 The forecasting model uses **engineered lag and rolling-window features** fed
 into a `GradientBoostingRegressor`. Forecasts are produced **recursively** for
