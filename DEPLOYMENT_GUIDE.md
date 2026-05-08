@@ -51,11 +51,17 @@ gives you 2 GB RAM and 1 full CPU for $25/mo. No code changes needed.
 
 ## 2. Deploy the API gateway to Vercel
 
+The Express app in `server/server.js` is exposed to Vercel through
+`api/index.js` (Vercel's required Serverless Function convention) and
+the root `package.json` (so Vercel knows what to `npm install`).
+
 1. <https://vercel.com> → **Add New Project** → import the same GitHub repo.
 2. **Project name:** `rink-api`.
-3. **Root directory:** leave at repo root.
+3. **Root directory:** leave at repo root (`/`).
 4. **Framework preset:** Other.
-5. **Build / Install commands:** leave the defaults from `vercel.json`.
+5. **Build / Install commands:** leave the defaults — Vercel will run
+   `npm install` against the root `package.json` and treat
+   `api/index.js` as the Serverless Function.
 6. **Environment variables** (Production scope):
 
    | Key                    | Value                                                              |

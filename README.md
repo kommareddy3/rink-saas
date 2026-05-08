@@ -32,9 +32,11 @@ N steps. The CSV column to forecast is auto-detected (`value`, `y`, `target`,
 
 ```
 rink-saas-v3-ml/
+├── api/           # Vercel Serverless Function entry (re-exports server/)
 ├── client/        # React + Vite frontend (deploy to Vercel)
-├── server/        # Express API gateway (deploy to Vercel)
+├── server/        # Express API gateway code
 ├── ml_api/        # FastAPI ML service (deploy to Render)
+├── package.json   # Root deps installed by Vercel
 ├── vercel.json    # Backend deploy config
 └── DEPLOYMENT_GUIDE.md
 ```

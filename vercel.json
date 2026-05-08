@@ -1,13 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
-  "buildCommand": "echo 'Backend: no build step'",
-  "installCommand": "cd server && npm install",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/server/server.js" }
+    { "source": "/(.*)", "destination": "/api/index" }
   ],
   "functions": {
-    "server/server.js": {
+    "api/index.js": {
       "memory": 1024,
       "maxDuration": 60
     }
