@@ -5,21 +5,20 @@ RINK Global Services - ML Forecasting Service
 FastAPI service that exposes time-series training and recursive
 multi-step forecasting endpoints.
 
-Pipeline:
-  * Detect a date column (date / timestamp / time / datetime / ds / period,
-    or first parseable string column).
-  * Sort the dataset ascending by date so the *last* row is the most recent.
-  * Detect the value column (preferred names, or first numeric column).
-  * Engineer lag and rolling features and fit a GradientBoostingRegressor
-    with a held-out validation split.
-  * Predict recursively for `steps` future periods.
+Per-user storage:
+  All persisted state (uploaded CSV, trained model, meta) lives under
+  ``$RINK_DATA_DIR/users/<user_id>/``. The user's identifier is supplied
+  by the gateway via the ``X-User-ID`` request header, which carries the
+  Supabase user UUID. Direct callers (without the header) are rejected
+  for any data-touching route.
 
 Endpoints:
-  GET  /health      Liveness probe
-  POST /upload      Accept a CSV file (multipart) and persist it
-  POST /train       Train the model on the persisted CSV
-  POST /predict     Recursively forecast `steps` future values from `values`
-  GET  /data        Return the most recent N values (chronologically sorted)
+  GET    /health      Liveness probe
+  POST   /upload      Accept a CSV file (multipart) and persist it
+  POST   /train       Train the model on the persisted CSV
+  POST   /predict     Recursively forecast `steps` future values from `values`
+  GET    /data        Return the most recent N values (chronologically sorted)
+  DELETE /user-data   Remove all files for the calling user
 """
 
 from __future__ import annotations
@@ -27,13 +26,16 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sklearn.ensemble import GradientBoostingRegressor
@@ -47,14 +49,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("rink-ml")
 
 DATA_DIR = Path(os.environ.get("RINK_DATA_DIR", Path(__file__).parent / "data"))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+USERS_DIR = DATA_DIR / "users"
+USERS_DIR.mkdir(parents=True, exist_ok=True)
 
-DATASET_PATH = DATA_DIR / "uploaded.csv"
-MODEL_PATH = DATA_DIR / "model.joblib"
-META_PATH = DATA_DIR / "meta.joblib"
-
-# CSV column auto-detection: prefer these names if present, otherwise
-# fall back to the first numeric column in the file.
 PREFERRED_VALUE_COLUMNS = [
     "value", "y", "target", "close", "price", "pmms30",
 ]
@@ -69,7 +66,12 @@ DATE_COLUMN_CANDIDATES = [
 
 LAGS = [1, 2, 3, 5, 7]
 ROLLING_WINDOWS = [3, 7]
-MIN_TRAIN_ROWS = 30  # need enough history for features + train/val split
+MIN_TRAIN_ROWS = 30
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # must match Express + client limits
+
+# Accepts UUID-ish identifiers (Supabase user IDs are UUIDv4) — and any other
+# alphanumeric/dash/underscore sequence. Anything else is rejected.
+USER_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
 
 ALLOWED_ORIGINS = [
     o.strip() for o in os.environ.get(
@@ -79,11 +81,16 @@ ALLOWED_ORIGINS = [
     if o.strip()
 ]
 
+# Optional shared secret between Express ↔ FastAPI. When set, every protected
+# request must carry this value in the ``X-Gateway-Secret`` header. Leave
+# unset for local dev; set in Render env vars in production.
+GATEWAY_SECRET = os.environ.get("GATEWAY_SECRET", "").strip()
+
 # ---------------------------------------------------------------------------
 # App + CORS
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="RINK ML Service", version="1.1.0")
+app = FastAPI(title="RINK ML Service", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -134,11 +141,51 @@ class DataResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Date detection + frequency inference
+# Per-user paths
+# ---------------------------------------------------------------------------
+
+@dataclass
+class UserPaths:
+    user_id: str
+    dir: Path
+    dataset: Path
+    model: Path
+    meta: Path
+
+    def ensure_dir(self) -> None:
+        self.dir.mkdir(parents=True, exist_ok=True)
+
+
+def _verify_gateway(request: Request) -> None:
+    if not GATEWAY_SECRET:
+        return
+    supplied = request.headers.get("X-Gateway-Secret", "")
+    if supplied != GATEWAY_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid gateway credentials")
+
+
+def _get_paths(request: Request) -> UserPaths:
+    _verify_gateway(request)
+    user_id = (request.headers.get("X-User-ID") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing X-User-ID header")
+    if not USER_ID_RE.match(user_id):
+        raise HTTPException(status_code=400, detail="Invalid X-User-ID format")
+    user_dir = USERS_DIR / user_id
+    return UserPaths(
+        user_id=user_id,
+        dir=user_dir,
+        dataset=user_dir / "uploaded.csv",
+        model=user_dir / "model.joblib",
+        meta=user_dir / "meta.joblib",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Date detection + frequency inference (unchanged)
 # ---------------------------------------------------------------------------
 
 def _detect_date_column(df: pd.DataFrame) -> Optional[str]:
-    """Return the name of a date column, or None."""
     for col in DATE_COLUMN_CANDIDATES:
         if col in df.columns:
             try:
@@ -147,8 +194,6 @@ def _detect_date_column(df: pd.DataFrame) -> Optional[str]:
                     return col
             except Exception:
                 pass
-
-    # Fall back to scanning string columns for something parseable as a date.
     for col in df.columns:
         if df[col].dtype != "object":
             continue
@@ -165,7 +210,6 @@ def _detect_date_column(df: pd.DataFrame) -> Optional[str]:
 
 
 def _infer_frequency(dates: pd.Series) -> Tuple[str, Optional[float]]:
-    """Given an ascending DatetimeIndex/Series, return (label, days_per_step)."""
     sorted_dates = pd.to_datetime(dates).dropna().sort_values().reset_index(drop=True)
     if len(sorted_dates) < 2:
         return ("unknown", None)
@@ -174,7 +218,6 @@ def _infer_frequency(dates: pd.Series) -> Tuple[str, Optional[float]]:
     if median_seconds is None or np.isnan(median_seconds):
         return ("unknown", None)
     median_days = median_seconds / 86400.0
-
     if median_days < 0.5:
         return (f"every {median_seconds/3600:.1f}h", median_days or 1 / 24)
     if abs(median_days - 1) < 0.4:
@@ -211,20 +254,16 @@ def _detect_value_column(df: pd.DataFrame, exclude: Optional[List[str]] = None) 
 
 def _resolve_value_column(
     df: pd.DataFrame,
+    paths: UserPaths,
     requested: Optional[str] = None,
     exclude: Optional[List[str]] = None,
 ) -> str:
-    """Choose a column in priority order:
-    1. The explicit `requested` if it exists and is numeric.
-    2. The column saved in model meta (if it's still present).
-    3. The auto-detected column.
-    """
     available = _list_numeric_columns(df, exclude=exclude)
     if requested and requested in available:
         return requested
-    if META_PATH.exists():
+    if paths.meta.exists():
         try:
-            meta = joblib.load(META_PATH)
+            meta = joblib.load(paths.meta)
             saved = meta.get("column") if isinstance(meta, dict) else None
             if saved and saved in available:
                 return saved
@@ -233,14 +272,30 @@ def _resolve_value_column(
     return _detect_value_column(df, exclude=exclude)
 
 
-def _prepare_dataset() -> Tuple[pd.DataFrame, Optional[str], str, Optional[float]]:
-    """Load CSV, detect + parse date column, sort ascending. Returns
-    (df, date_column_or_None, frequency_label, days_per_step_or_None)."""
-    df = _load_dataset()
+# ---------------------------------------------------------------------------
+# Dataset/model IO (per-user)
+# ---------------------------------------------------------------------------
+
+def _load_dataset(paths: UserPaths) -> pd.DataFrame:
+    if not paths.dataset.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="No dataset uploaded yet. POST a CSV to /upload first.",
+        )
+    try:
+        df = pd.read_csv(paths.dataset)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to read CSV: {exc}")
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Uploaded CSV is empty.")
+    return df
+
+
+def _prepare_dataset(paths: UserPaths) -> Tuple[pd.DataFrame, Optional[str], str, Optional[float]]:
+    df = _load_dataset(paths)
     date_col = _detect_date_column(df)
     if date_col is None:
         return df, None, "unknown", None
-
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
     df = df.dropna(subset=[date_col])
@@ -249,12 +304,7 @@ def _prepare_dataset() -> Tuple[pd.DataFrame, Optional[str], str, Optional[float
     return df, date_col, frequency, days_per_step
 
 
-# ---------------------------------------------------------------------------
-# Feature engineering helpers
-# ---------------------------------------------------------------------------
-
 def _build_features(series: pd.Series) -> pd.DataFrame:
-    """Build lag + rolling features from a 1-D numeric series."""
     df = pd.DataFrame({"y": series.values})
     for lag in LAGS:
         df[f"lag{lag}"] = df["y"].shift(lag)
@@ -278,35 +328,19 @@ def _features_from_history(history: List[float]) -> np.ndarray:
     return np.array(feats, dtype=float).reshape(1, -1)
 
 
-def _load_dataset() -> pd.DataFrame:
-    if not DATASET_PATH.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="No dataset uploaded yet. POST a CSV to /upload first.",
-        )
-    try:
-        df = pd.read_csv(DATASET_PATH)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to read CSV: {exc}")
-    if df.empty:
-        raise HTTPException(status_code=400, detail="Uploaded CSV is empty.")
-    return df
+def _save_model(paths: UserPaths, model: GradientBoostingRegressor, meta: dict) -> None:
+    paths.ensure_dir()
+    joblib.dump(model, paths.model)
+    joblib.dump(meta, paths.meta)
 
 
-def _save_model(model: GradientBoostingRegressor, meta: dict) -> None:
-    joblib.dump(model, MODEL_PATH)
-    joblib.dump(meta, META_PATH)
-
-
-def _load_model() -> Tuple[GradientBoostingRegressor, dict]:
-    if not MODEL_PATH.exists() or not META_PATH.exists():
+def _load_model(paths: UserPaths) -> Tuple[GradientBoostingRegressor, dict]:
+    if not paths.model.exists() or not paths.meta.exists():
         raise HTTPException(
             status_code=409,
             detail="Model has not been trained yet. POST to /train first.",
         )
-    model = joblib.load(MODEL_PATH)
-    meta = joblib.load(META_PATH)
-    return model, meta
+    return joblib.load(paths.model), joblib.load(paths.meta)
 
 
 # ---------------------------------------------------------------------------
@@ -317,20 +351,23 @@ def _load_model() -> Tuple[GradientBoostingRegressor, dict]:
 def health() -> dict:
     return {
         "status": "ok",
-        "dataset_loaded": DATASET_PATH.exists(),
-        "model_trained": MODEL_PATH.exists(),
+        "users_dir": str(USERS_DIR),
+        "user_count": sum(1 for _ in USERS_DIR.glob("*")) if USERS_DIR.exists() else 0,
+        "gateway_secret_required": bool(GATEWAY_SECRET),
     }
 
 
 @app.post("/upload")
-async def upload(file: UploadFile = File(...)) -> dict:
+async def upload(request: Request, file: UploadFile = File(...)) -> dict:
+    paths = _get_paths(request)
+
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are accepted.")
 
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-    if len(contents) > 10 * 1024 * 1024:
+    if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 10MB).")
 
     try:
@@ -338,19 +375,21 @@ async def upload(file: UploadFile = File(...)) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid CSV: {exc}")
 
-    DATASET_PATH.write_bytes(contents)
-    log.info("Stored uploaded dataset (%d bytes) at %s", len(contents), DATASET_PATH)
-    return {"status": "uploaded", "bytes": len(contents), "path": str(DATASET_PATH)}
+    paths.ensure_dir()
+    paths.dataset.write_bytes(contents)
+    log.info("[user=%s] stored dataset (%d bytes)", paths.user_id, len(contents))
+    return {"status": "uploaded", "bytes": len(contents)}
 
 
 @app.post("/train", response_model=TrainResponse)
-def train(req: TrainRequest = TrainRequest()) -> TrainResponse:
-    df, date_col, frequency, days_per_step = _prepare_dataset()
+def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse:
+    paths = _get_paths(request)
+    df, date_col, frequency, days_per_step = _prepare_dataset(paths)
     excluded = [date_col] if date_col else None
-    column = _resolve_value_column(df, requested=req.column, exclude=excluded)
+    column = _resolve_value_column(df, paths, requested=req.column, exclude=excluded)
     available = _list_numeric_columns(df, exclude=excluded)
-    series = pd.to_numeric(df[column], errors="coerce").dropna()
 
+    series = pd.to_numeric(df[column], errors="coerce").dropna()
     if len(series) < MIN_TRAIN_ROWS:
         raise HTTPException(
             status_code=400,
@@ -380,6 +419,7 @@ def train(req: TrainRequest = TrainRequest()) -> TrainResponse:
     mae = float(mean_absolute_error(val_target, val_pred))
 
     _save_model(
+        paths,
         model,
         {
             "column": column,
@@ -389,8 +429,8 @@ def train(req: TrainRequest = TrainRequest()) -> TrainResponse:
         },
     )
     log.info(
-        "Trained on %d rows (col=%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
-        len(feats), column, date_col, frequency, rmse, mae,
+        "[user=%s] trained on %d rows (col=%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
+        paths.user_id, len(feats), column, date_col, frequency, rmse, mae,
     )
 
     return TrainResponse(
@@ -407,9 +447,9 @@ def train(req: TrainRequest = TrainRequest()) -> TrainResponse:
 
 
 @app.post("/predict", response_model=PredictResponse)
-def predict(data: InputData) -> PredictResponse:
-    model, _meta = _load_model()
-
+def predict(request: Request, data: InputData) -> PredictResponse:
+    paths = _get_paths(request)
+    model, _meta = _load_model(paths)
     history = list(data.values)
     predictions: List[float] = []
     for _ in range(data.steps):
@@ -417,13 +457,14 @@ def predict(data: InputData) -> PredictResponse:
         yhat = float(model.predict(x)[0])
         predictions.append(yhat)
         history.append(yhat)
-
     return PredictResponse(predictions=predictions)
 
 
 @app.get("/data", response_model=DataResponse)
-def get_data(limit: int = 500, column: Optional[str] = None) -> DataResponse:
-    if not DATASET_PATH.exists():
+def get_data(request: Request, limit: int = 500, column: Optional[str] = None) -> DataResponse:
+    paths = _get_paths(request)
+    if not paths.dataset.exists():
+        # Fresh user — show a tiny demo so the dashboard renders.
         return DataResponse(
             column="demo",
             available_columns=["demo"],
@@ -434,9 +475,9 @@ def get_data(limit: int = 500, column: Optional[str] = None) -> DataResponse:
             days_per_step=None,
         )
 
-    df, date_col, frequency, days_per_step = _prepare_dataset()
+    df, date_col, frequency, days_per_step = _prepare_dataset(paths)
     excluded = [date_col] if date_col else None
-    chosen = _resolve_value_column(df, requested=column, exclude=excluded)
+    chosen = _resolve_value_column(df, paths, requested=column, exclude=excluded)
     available = _list_numeric_columns(df, exclude=excluded)
     series_raw = pd.to_numeric(df[chosen], errors="coerce")
     mask = series_raw.notna()
@@ -460,3 +501,15 @@ def get_data(limit: int = 500, column: Optional[str] = None) -> DataResponse:
         date_column=date_col,
         days_per_step=days_per_step,
     )
+
+
+@app.delete("/user-data")
+def delete_user_data(request: Request) -> dict:
+    """Permanently remove the calling user's uploaded CSV and trained model."""
+    paths = _get_paths(request)
+    removed = False
+    if paths.dir.exists():
+        shutil.rmtree(paths.dir, ignore_errors=True)
+        removed = True
+    log.info("[user=%s] data deleted=%s", paths.user_id, removed)
+    return {"status": "deleted", "removed": removed}

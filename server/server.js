@@ -32,6 +32,9 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "5001", 10);
 const ML_API_URL = process.env.ML_API_URL || "http://localhost:8000";
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+// Optional shared secret between Express ↔ FastAPI. Set the same value on
+// both deployments to lock the ML service to gateway traffic only.
+const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
   "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com")
@@ -107,6 +110,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });
+
+// Build the headers we forward to FastAPI on every authed call.
+function mlHeaders(req, extra = {}) {
+  const headers = {
+    "X-User-ID": req.user?.id || "",
+    ...extra,
+  };
+  if (GATEWAY_SECRET) headers["X-Gateway-Secret"] = GATEWAY_SECRET;
+  return headers;
+}
 
 // Optionally serve the built frontend if a sibling client/dist exists.
 const clientDistPath = path.join(__dirname, "../client/dist");
@@ -207,13 +220,17 @@ app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => 
     });
 
     await axios.post(`${ML_API_URL}/upload`, fd, {
-      headers: fd.getHeaders(),
+      headers: mlHeaders(req, fd.getHeaders()),
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
       timeout: 60_000,
     });
 
-    const trainRes = await axios.post(`${ML_API_URL}/train`, null, { timeout: 120_000 });
+    const trainRes = await axios.post(
+      `${ML_API_URL}/train`,
+      {},
+      { headers: mlHeaders(req), timeout: 120_000 }
+    );
     res.json({ message: "Uploaded and trained successfully.", training: trainRes.data });
   } catch (err) {
     handleProxyError(err, res, "Upload or training failed");
@@ -223,7 +240,10 @@ app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => 
 app.post("/api/train", requireAuth, async (req, res) => {
   try {
     const body = req.body && typeof req.body === "object" ? req.body : {};
-    const r = await axios.post(`${ML_API_URL}/train`, body, { timeout: 120_000 });
+    const r = await axios.post(`${ML_API_URL}/train`, body, {
+      headers: mlHeaders(req),
+      timeout: 120_000,
+    });
     res.json(r.data);
   } catch (err) {
     handleProxyError(err, res, "Training failed");
@@ -232,7 +252,10 @@ app.post("/api/train", requireAuth, async (req, res) => {
 
 app.post("/api/predict", requireAuth, async (req, res) => {
   try {
-    const r = await axios.post(`${ML_API_URL}/predict`, req.body, { timeout: 30_000 });
+    const r = await axios.post(`${ML_API_URL}/predict`, req.body, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
     res.json(r.data);
   } catch (err) {
     handleProxyError(err, res, "Prediction failed");
@@ -242,12 +265,28 @@ app.post("/api/predict", requireAuth, async (req, res) => {
 app.get("/api/data", requireAuth, async (req, res) => {
   try {
     const r = await axios.get(`${ML_API_URL}/data`, {
+      headers: mlHeaders(req),
       params: req.query,
       timeout: 15_000,
     });
     res.json(r.data);
   } catch (err) {
     handleProxyError(err, res, "Data fetch failed");
+  }
+});
+
+// Permanently delete the caller's uploaded CSV and trained model on the ML
+// service. Called by the client on logout (manual or idle) so files don't
+// linger after a session ends.
+app.delete("/api/user-data", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.delete(`${ML_API_URL}/user-data`, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Failed to delete user data");
   }
 });
 

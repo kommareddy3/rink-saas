@@ -1,25 +1,119 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import axios from "axios";
 import supabase from "../supabaseClient";
+import API_BASE_URL from "../config";
+
+// ---------------------------------------------------------------------------
+// Idle-timeout configuration
+// ---------------------------------------------------------------------------
+//
+// A user's session is considered active for at most IDLE_TIMEOUT_MS of
+// real-world inactivity. Each user-driven event (mousedown, keydown, scroll,
+// touch, click, focus) resets the activity stamp. A periodic interval checks
+// the stamp; if it has aged past the timeout, we sign the user out.
+//
+// The activity stamp lives in localStorage so it's shared across tabs of the
+// same browser and survives page reloads.
+// ---------------------------------------------------------------------------
+
+const IDLE_TIMEOUT_MS = 4 * 60 * 60 * 1000;     // 4 hours
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000;       // re-check every 60 s
+const ACTIVITY_THROTTLE_MS = 30 * 1000;         // write at most once every 30 s
+const LS_KEY_LAST_ACTIVITY = "rink:lastActivity";
+
+const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "click", "focus"];
 
 const AuthContext = createContext(null);
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function readLastActivity() {
+  if (typeof window === "undefined") return Date.now();
+  const raw = window.localStorage.getItem(LS_KEY_LAST_ACTIVITY);
+  const n = parseInt(raw || "", 10);
+  return Number.isFinite(n) ? n : Date.now();
+}
+
+function writeLastActivity(ts) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LS_KEY_LAST_ACTIVITY, String(ts));
+}
+
+function clearLastActivity() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(LS_KEY_LAST_ACTIVITY);
+}
+
+// Best-effort DELETE /api/user-data using the freshest access token. We bypass
+// the project's axios instance to avoid any import-cycle weirdness during
+// sign-out, and to control the timeout precisely.
+async function wipeServerData(token) {
+  if (!token) return false;
+  try {
+    await axios.delete(`${API_BASE_URL}/api/user-data`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000,
+    });
+    return true;
+  } catch (err) {
+    console.warn("[auth] failed to wipe server data on logout:", err?.message || err);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  // Supabase fires PASSWORD_RECOVERY when the user lands on the app via a
-  // password-reset email. Components listen for this so they can render the
-  // "set a new password" form.
   const [recoveryActive, setRecoveryActive] = useState(false);
 
+  // Latest access token in a ref so the idle interval can read it without
+  // re-subscribing every state change.
+  const tokenRef = useRef(null);
+  const signingOutRef = useRef(false);
+
+  useEffect(() => {
+    tokenRef.current = session?.access_token || null;
+  }, [session]);
+
+  // -------------------------------------------------------------------------
+  // Initial hydration + Supabase auth listener
+  // -------------------------------------------------------------------------
   useEffect(() => {
     let mounted = true;
 
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
+      const initialSession = data.session ?? null;
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
       setLoading(false);
+
+      // If we have a returning user but they've been idle past the threshold,
+      // sign them out immediately.
+      if (initialSession?.user) {
+        const last = readLastActivity();
+        if (Date.now() - last > IDLE_TIMEOUT_MS) {
+          // Fire and forget — the caller's session is already stale.
+          void enforcedSignOut("idle");
+        } else {
+          writeLastActivity(Date.now());
+        }
+      }
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -29,9 +123,13 @@ export function AuthProvider({ children }) {
         setUser(newSession?.user ?? null);
         setLoading(false);
         if (event === "PASSWORD_RECOVERY") setRecoveryActive(true);
-        if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
-          // Recovery is one-shot; clear once the user takes action.
-          if (event !== "PASSWORD_RECOVERY") setRecoveryActive(false);
+        if (event === "SIGNED_IN") {
+          writeLastActivity(Date.now());
+          setRecoveryActive(false);
+        }
+        if (event === "SIGNED_OUT") {
+          clearLastActivity();
+          setRecoveryActive(false);
         }
       }
     );
@@ -40,7 +138,47 @@ export function AuthProvider({ children }) {
       mounted = false;
       authListener?.subscription?.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // -------------------------------------------------------------------------
+  // Idle tracking — only active while the user is signed in.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (!user) return;
+
+    let lastWrite = 0;
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastWrite < ACTIVITY_THROTTLE_MS) return;
+      lastWrite = now;
+      writeLastActivity(now);
+    };
+
+    ACTIVITY_EVENTS.forEach((evt) =>
+      window.addEventListener(evt, onActivity, { passive: true })
+    );
+    // Initial stamp — important when the user has just signed in.
+    writeLastActivity(Date.now());
+
+    const interval = setInterval(() => {
+      if (signingOutRef.current) return;
+      const last = readLastActivity();
+      if (Date.now() - last > IDLE_TIMEOUT_MS) {
+        void enforcedSignOut("idle");
+      }
+    }, IDLE_CHECK_INTERVAL_MS);
+
+    return () => {
+      ACTIVITY_EVENTS.forEach((evt) => window.removeEventListener(evt, onActivity));
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // -------------------------------------------------------------------------
+  // Auth methods
+  // -------------------------------------------------------------------------
 
   const signIn = async ({ email, password }) => {
     setLoading(true);
@@ -49,6 +187,7 @@ export function AuthProvider({ children }) {
     if (data?.session) {
       setSession(data.session);
       setUser(data.user);
+      writeLastActivity(Date.now());
     }
     return { data, error };
   };
@@ -68,43 +207,61 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: userMetadata,
-        emailRedirectTo,
-      },
+      options: { data: userMetadata, emailRedirectTo },
     });
     setLoading(false);
     if (data?.session) {
       setSession(data.session);
       setUser(data.user);
+      writeLastActivity(Date.now());
     }
     return { data, error };
   };
 
-  const signOut = async () => {
+  // Internal sign-out that always wipes server data first. ``reason`` is logged
+  // so we can distinguish "user clicked Sign out" vs "session went idle".
+  const enforcedSignOut = useCallback(async (reason = "manual") => {
+    if (signingOutRef.current) return { error: null };
+    signingOutRef.current = true;
     setLoading(true);
-    const { error } = await supabase.auth.signOut();
-    setLoading(false);
-    if (!error) {
-      setUser(null);
-      setSession(null);
-      setRecoveryActive(false);
+    try {
+      const token = tokenRef.current;
+      // Best-effort: tell the server to delete the user's files. Don't block
+      // the actual sign-out on this — fire it with a 5s ceiling.
+      await wipeServerData(token);
+      clearLastActivity();
+      const { error } = await supabase.auth.signOut();
+      if (!error) {
+        setUser(null);
+        setSession(null);
+        setRecoveryActive(false);
+        if (reason === "idle") {
+          // Surface why the page just navigated away.
+          console.info("[auth] signed out due to inactivity");
+        }
+      }
+      return { error };
+    } finally {
+      setLoading(false);
+      signingOutRef.current = false;
     }
-    return { error };
-  };
+  }, []);
+
+  const signOut = useCallback(() => enforcedSignOut("manual"), [enforcedSignOut]);
 
   const resetPasswordForEmail = async (email) => {
     const redirectTo =
       typeof window !== "undefined" ? `${window.location.origin}/auth` : undefined;
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    });
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     return { data, error };
   };
 
   const updatePassword = async (newPassword) => {
     const { data, error } = await supabase.auth.updateUser({ password: newPassword });
-    if (data?.user) setUser(data.user);
+    if (data?.user) {
+      setUser(data.user);
+      writeLastActivity(Date.now());
+    }
     return { data, error };
   };
 
@@ -142,7 +299,7 @@ export function AuthProvider({ children }) {
       resendConfirmation,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, session, loading, recoveryActive, displayName]
+    [user, session, loading, recoveryActive, displayName, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
