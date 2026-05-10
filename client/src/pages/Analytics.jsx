@@ -21,6 +21,9 @@ import {
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB — must match server limit
 const MIN_PREDICT_VALUES = 7; // matches max(LAGS) in the ML service
+const FETCH_LIMIT = 5000;     // ML API hard cap
+const LS_KEY_COLUMN = "rink:selectedColumn";
+const LS_KEY_RANGE = "rink:dateRange";
 
 const COLORS = {
   actual: "#60a5fa",
@@ -31,6 +34,21 @@ const COLORS = {
   grid: "#1f2937",
   axis: "#9ca3af",
 };
+
+// Date-range presets (when a date column is present)
+const DATE_RANGES = [
+  { id: "90d", label: "90D", days: 90 },
+  { id: "1y", label: "1Y", days: 365 },
+  { id: "5y", label: "5Y", days: 365 * 5 },
+  { id: "all", label: "All", days: null },
+];
+
+// Count-based ranges (when no date column)
+const COUNT_RANGES = [
+  { id: "100", label: "100", count: 100 },
+  { id: "500", label: "500", count: 500 },
+  { id: "all", label: "All", count: null },
+];
 
 // ---------------------------------------------------------------------------
 // Date / frequency helpers
@@ -60,11 +78,17 @@ function formatDateISO(d) {
 }
 
 function shortDate(iso) {
-  // "2026-05-08" → "May 8 '26"  (compact for chart ticks)
   if (!iso || typeof iso !== "string") return iso;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+}
+
+function diffDays(isoLater, isoEarlier) {
+  const a = new Date(isoLater).getTime();
+  const b = new Date(isoEarlier).getTime();
+  if (isNaN(a) || isNaN(b)) return Infinity;
+  return (a - b) / 86400000;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,9 +179,7 @@ function ToastList({ toasts, dismiss }) {
 
 function Card({ className = "", children }) {
   return (
-    <div
-      className={`bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.25)] ${className}`}
-    >
+    <div className={`bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.25)] ${className}`}>
       {children}
     </div>
   );
@@ -165,7 +187,7 @@ function Card({ className = "", children }) {
 
 function SectionHeader({ icon, title, subtitle, action }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-4">
+    <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
       <div className="flex items-start gap-3 min-w-0">
         {icon && (
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/30 to-purple-500/30 border border-white/10 flex items-center justify-center flex-none">
@@ -250,6 +272,38 @@ function Button({ variant = "primary", className = "", children, loading, ...pro
       )}
       {children}
     </button>
+  );
+}
+
+// Pill-button group used for column picker / date range / step selector.
+function PillGroup({ options, value, onChange, disabled, tone = "purple", small }) {
+  const tones = {
+    blue: "bg-blue-500/30 border-blue-400/50 text-white",
+    emerald: "bg-emerald-500/30 border-emerald-400/50 text-white",
+    purple: "bg-purple-500/30 border-purple-400/50 text-white",
+    amber: "bg-amber-500/30 border-amber-400/50 text-white",
+  };
+  const sizing = small ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm";
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => !disabled && onChange(opt.value)}
+            disabled={disabled}
+            className={`${sizing} rounded-lg font-medium border transition-all ${
+              active ? tones[tone] : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={opt.title}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -354,7 +408,7 @@ function DropZone({ file, onSelect, onClear, disabled }) {
 }
 
 // ---------------------------------------------------------------------------
-// Custom chart tooltip (date-aware)
+// Custom chart tooltip
 // ---------------------------------------------------------------------------
 
 function ChartTooltip({ active, payload }) {
@@ -390,25 +444,36 @@ function ChartTooltip({ active, payload }) {
 export default function Analytics() {
   const { toasts, toast, dismiss } = useToasts();
 
+  // Forecast inputs
   const [file, setFile] = useState(null);
   const [valuesText, setValuesText] = useState("");
   const [steps, setSteps] = useState(10);
   const [predictions, setPredictions] = useState([]);
   const [splitIdx, setSplitIdx] = useState(null);
 
+  // Server data
   const [actual, setActual] = useState([]);
-  const [dates, setDates] = useState([]); // ISO date strings parallel to actual
+  const [dates, setDates] = useState([]); // ISO strings parallel to actual
   const [column, setColumn] = useState("value");
+  const [availableColumns, setAvailableColumns] = useState([]);
   const [dateColumn, setDateColumn] = useState(null);
   const [frequency, setFrequency] = useState("unknown");
   const [daysPerStep, setDaysPerStep] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [activity, setActivity] = useState([]);
 
+  // Chart range
+  const [dateRange, setDateRange] = useState(() => {
+    if (typeof window === "undefined") return "all";
+    return localStorage.getItem(LS_KEY_RANGE) || "all";
+  });
+
+  // Loading flags
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isTraining, setIsTraining] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
 
   const freq = frequencyLabel(frequency);
 
@@ -416,63 +481,96 @@ export default function Analytics() {
     setActivity((prev) => [{ kind, message, at: new Date() }, ...prev].slice(0, 8));
   }, []);
 
-  // Pre-fill the input with the most recent N values, where
-  // N = max(steps, MIN_PREDICT_VALUES). Always uses the *chronologically last*
-  // values (the API has already sorted ascending by date if available).
-  const computeFillValues = useCallback(
-    (n) => {
-      const want = Math.max(MIN_PREDICT_VALUES, n);
-      const slice = actual.slice(-want);
-      return slice;
-    },
-    [actual]
-  );
+  // ---------------------------------------------------------------------------
+  // Server interaction
+  // ---------------------------------------------------------------------------
 
-  const fetchData = useCallback(async () => {
-    setIsLoadingData(true);
-    try {
-      const res = await api.get("/api/data", { params: { limit: 500 } });
-      const values = res.data.data || [];
-      const ds = res.data.dates || [];
-      setActual(values);
-      setDates(ds);
-      setColumn(res.data.column || "value");
-      setDateColumn(res.data.date_column || null);
-      setFrequency(res.data.frequency || "unknown");
-      setDaysPerStep(res.data.days_per_step || null);
-      // Auto-fill prediction input with most recent values
-      if (values.length >= MIN_PREDICT_VALUES) {
-        const want = Math.max(MIN_PREDICT_VALUES, steps);
-        setValuesText(values.slice(-want).join(", "));
+  const fetchData = useCallback(
+    async (columnOverride) => {
+      setIsLoadingData(true);
+      try {
+        const params = { limit: FETCH_LIMIT };
+        const wanted = columnOverride ?? localStorage.getItem(LS_KEY_COLUMN);
+        if (wanted) params.column = wanted;
+        const res = await api.get("/api/data", { params });
+        const values = res.data.data || [];
+        const ds = res.data.dates || [];
+        setActual(values);
+        setDates(ds);
+        setColumn(res.data.column || "value");
+        setAvailableColumns(res.data.available_columns || []);
+        setDateColumn(res.data.date_column || null);
+        setFrequency(res.data.frequency || "unknown");
+        setDaysPerStep(res.data.days_per_step || null);
+        if (res.data.column) {
+          localStorage.setItem(LS_KEY_COLUMN, res.data.column);
+        }
+        if (values.length >= MIN_PREDICT_VALUES) {
+          const want = Math.max(MIN_PREDICT_VALUES, steps);
+          setValuesText(values.slice(-want).join(", "));
+        }
+        return res.data;
+      } catch (err) {
+        toast.error(prettyError(err, "Could not load dataset."));
+        return null;
+      } finally {
+        setIsLoadingData(false);
       }
-    } catch (err) {
-      toast.error(prettyError(err, "Could not load dataset."));
-    } finally {
-      setIsLoadingData(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]);
+    },
+    [toast, steps]
+  );
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
-
-  // Re-fill input when steps changes (if data loaded and user hasn't typed something custom)
-  useEffect(() => {
-    if (!actual.length) return;
-    const fill = computeFillValues(steps).join(", ");
-    setValuesText((prev) => (prev === "" ? fill : prev));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actual]);
+  }, []);
 
-  // --- chart data with date labels and confidence band ----------------------
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(LS_KEY_RANGE, dateRange);
+    }
+  }, [dateRange]);
+
+  // ---------------------------------------------------------------------------
+  // Visible window (date-range filter)
+  // ---------------------------------------------------------------------------
+
+  const { visibleActual, visibleDates } = useMemo(() => {
+    if (!actual.length) return { visibleActual: [], visibleDates: [] };
+
+    // Date-based filtering (only when we actually have ISO dates)
+    if (dates.length === actual.length && dateColumn) {
+      const preset = DATE_RANGES.find((r) => r.id === dateRange) || DATE_RANGES[3];
+      if (!preset.days) return { visibleActual: actual, visibleDates: dates };
+      const lastIso = dates[dates.length - 1];
+      const cutoff = preset.days;
+      const startIdx = dates.findIndex((iso) => diffDays(lastIso, iso) <= cutoff);
+      if (startIdx === -1) return { visibleActual: actual.slice(-1), visibleDates: dates.slice(-1) };
+      return {
+        visibleActual: actual.slice(startIdx),
+        visibleDates: dates.slice(startIdx),
+      };
+    }
+
+    // Count-based fallback
+    const preset = COUNT_RANGES.find((r) => r.id === dateRange) || COUNT_RANGES[2];
+    if (!preset.count) return { visibleActual: actual, visibleDates: dates };
+    return {
+      visibleActual: actual.slice(-preset.count),
+      visibleDates: dates.slice(-preset.count),
+    };
+  }, [actual, dates, dateColumn, dateRange]);
+
+  // ---------------------------------------------------------------------------
+  // Chart data
+  // ---------------------------------------------------------------------------
+
   const chartData = useMemo(() => {
     const rmse = metrics?.rmse ?? 0;
-
-    const data = actual.map((v, i) => ({
+    const data = visibleActual.map((v, i) => ({
       name: i,
-      label: dates[i] ? shortDate(dates[i]) : `${i}`,
-      iso: dates[i] || null,
+      label: visibleDates[i] ? shortDate(visibleDates[i]) : `${i}`,
+      iso: visibleDates[i] || null,
       actual: v,
       predicted: null,
       bandLow: null,
@@ -481,11 +579,12 @@ export default function Analytics() {
 
     if (predictions.length && data.length) {
       const last = data.length - 1;
-      data[last].predicted = data[last].actual; // bridge
+      data[last].predicted = data[last].actual;
 
-      const lastIso = dates[dates.length - 1];
+      const lastIso = visibleDates[visibleDates.length - 1];
       const lastDate = lastIso ? new Date(lastIso) : null;
-      const stepDays = daysPerStep || (frequency === "weekly" ? 7 : frequency === "monthly" ? 30 : 1);
+      const stepDays =
+        daysPerStep || (frequency === "weekly" ? 7 : frequency === "monthly" ? 30 : 1);
 
       predictions.forEach((p, i) => {
         const widening = 1 + i * 0.25;
@@ -499,7 +598,7 @@ export default function Analytics() {
           label = `+${i + 1}`;
         }
         data.push({
-          name: actual.length + i,
+          name: visibleActual.length + i,
           label,
           iso,
           actual: null,
@@ -510,19 +609,19 @@ export default function Analytics() {
       });
     }
     return data;
-  }, [actual, dates, predictions, metrics, frequency, daysPerStep]);
+  }, [visibleActual, visibleDates, predictions, metrics, frequency, daysPerStep]);
 
   const forecastBars = useMemo(
     () =>
       predictions.map((p, i) => ({
-        step: chartData[actual.length + i]?.label || `+${i + 1}`,
+        step: chartData[visibleActual.length + i]?.label || `+${i + 1}`,
         value: p,
       })),
-    [predictions, chartData, actual.length]
+    [predictions, chartData, visibleActual.length]
   );
 
   // ---------------------------------------------------------------------------
-  // Actions
+  // Handlers
   // ---------------------------------------------------------------------------
 
   const handleSelectFile = (f, errorMessage) => {
@@ -556,8 +655,11 @@ export default function Analytics() {
       toast.success(msg);
       logActivity("success", `Uploaded ${file.name} (${formatBytes(file.size)}) · re-trained`);
       setFile(null);
-      // Reset input so it auto-refills from the new dataset
       setValuesText("");
+      setPredictions([]);
+      setSplitIdx(null);
+      // New CSV may have different columns — clear stored selection
+      localStorage.removeItem(LS_KEY_COLUMN);
       await fetchData();
     } catch (err) {
       dismiss(t);
@@ -568,16 +670,25 @@ export default function Analytics() {
     }
   };
 
+  const trainWithColumn = useCallback(
+    async (colOverride) => {
+      const body = colOverride ? { column: colOverride } : {};
+      const res = await api.post("/api/train", body);
+      setMetrics(res.data);
+      return res.data;
+    },
+    []
+  );
+
   const handleTrain = async () => {
     setIsTraining(true);
     const t = toast.info("Training model…", 0);
     try {
-      const res = await api.post("/api/train");
+      const data = await trainWithColumn(column);
       dismiss(t);
-      setMetrics(res.data);
-      const msg = `Trained on ${res.data.rows_used.toLocaleString()} rows · RMSE ${res.data.rmse.toFixed(
+      const msg = `Trained on ${data.rows_used.toLocaleString()} rows · column “${data.column}” · RMSE ${data.rmse.toFixed(
         4
-      )} · MAE ${res.data.mae.toFixed(4)}`;
+      )} · MAE ${data.mae.toFixed(4)}`;
       toast.success(msg);
       logActivity("success", msg);
     } catch (err) {
@@ -585,6 +696,37 @@ export default function Analytics() {
       toast.error(prettyError(err, "Training failed."));
     } finally {
       setIsTraining(false);
+    }
+  };
+
+  const handleSwitchColumn = async (newCol) => {
+    if (!newCol || newCol === column || isSwitching) return;
+    setIsSwitching(true);
+    const t = toast.info(`Switching to “${newCol}” and re-training…`, 0);
+    try {
+      // 1. Update local marker so subsequent fetches use it
+      localStorage.setItem(LS_KEY_COLUMN, newCol);
+      // 2. Refetch the series for the new column
+      await fetchData(newCol);
+      // 3. Re-train against it
+      const data = await trainWithColumn(newCol);
+      dismiss(t);
+      // 4. Predictions from old column are now stale
+      setPredictions([]);
+      setSplitIdx(null);
+      setValuesText("");
+      const msg = `Switched to “${data.column}” · trained on ${data.rows_used.toLocaleString()} rows · RMSE ${data.rmse.toFixed(
+        4
+      )} · MAE ${data.mae.toFixed(4)}`;
+      toast.success(msg);
+      logActivity("success", msg);
+    } catch (err) {
+      dismiss(t);
+      toast.error(prettyError(err, "Could not switch column."));
+      // Roll back to whatever the server actually has
+      await fetchData();
+    } finally {
+      setIsSwitching(false);
     }
   };
 
@@ -602,7 +744,7 @@ export default function Analytics() {
       const res = await api.post("/api/predict", { values: arr, steps });
       const ps = res.data.predictions || [];
       setPredictions(ps);
-      setSplitIdx(actual.length - 1);
+      setSplitIdx(visibleActual.length - 1);
       const horizon = `${ps.length} ${ps.length === 1 ? freq.unit : freq.units}`;
       toast.success(`Forecast generated · next ${horizon}`);
       logActivity("success", `Forecast: next ${horizon}`);
@@ -618,7 +760,8 @@ export default function Analytics() {
       toast.error(`Not enough actual data — need at least ${MIN_PREDICT_VALUES} rows.`);
       return;
     }
-    const slice = computeFillValues(steps);
+    const want = Math.max(MIN_PREDICT_VALUES, steps);
+    const slice = actual.slice(-want);
     setValuesText(slice.join(", "));
     const fromDate = dates[dates.length - slice.length];
     const toDate = dates[dates.length - 1];
@@ -632,6 +775,20 @@ export default function Analytics() {
 
   const hasData = actual.length > 0;
   const lastDateLabel = dates[dates.length - 1] ? shortDate(dates[dates.length - 1]) : null;
+
+  // Range options for the chart action area
+  const rangeOptions =
+    dateColumn && dates.length === actual.length
+      ? DATE_RANGES.map((r) => ({ value: r.id, label: r.label }))
+      : COUNT_RANGES.map((r) => ({ value: r.id, label: r.label }));
+
+  // Reconcile: if the active range is not in the active option set, fall back to "all"
+  useEffect(() => {
+    if (!rangeOptions.some((r) => r.value === dateRange)) {
+      setDateRange("all");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateColumn]);
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8 max-w-7xl mx-auto">
@@ -650,7 +807,7 @@ export default function Analytics() {
             chronologically, and forecast the next horizon at the inferred cadence.
           </p>
         </div>
-        <Button variant="ghost" onClick={fetchData} loading={isLoadingData}>
+        <Button variant="ghost" onClick={() => fetchData()} loading={isLoadingData}>
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
@@ -749,25 +906,46 @@ export default function Analytics() {
             </Button>
           </Card>
 
+          {/* Train + column picker */}
           <Card className="p-6">
             <SectionHeader
-              title="Re-train Model"
-              subtitle="Run on the current dataset"
+              title="Model"
+              subtitle="Choose a column and train"
               icon={
                 <svg className="w-5 h-5 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               }
             />
-            <Button
-              variant="success"
-              className="w-full"
-              onClick={handleTrain}
-              loading={isTraining}
-              disabled={!hasData}
-            >
-              {isTraining ? "Training…" : "Train Model"}
-            </Button>
+
+            {/* Column picker */}
+            <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
+              Column to forecast
+            </label>
+            <ColumnPicker
+              available={availableColumns}
+              value={column}
+              onChange={handleSwitchColumn}
+              disabled={isSwitching || isTraining || !hasData}
+            />
+            {availableColumns.length > 1 && (
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                Changing column refetches the data and re-trains automatically.
+              </p>
+            )}
+
+            <div className="mt-5">
+              <Button
+                variant="success"
+                className="w-full"
+                onClick={handleTrain}
+                loading={isTraining}
+                disabled={!hasData || isSwitching}
+              >
+                {isTraining ? "Training…" : "Re-train Model"}
+              </Button>
+            </div>
+
             {metrics && (
               <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
                 <div className="bg-white/5 border border-white/10 rounded-lg p-3">
@@ -786,6 +964,7 @@ export default function Analytics() {
             )}
           </Card>
 
+          {/* Predict */}
           <Card className="p-6">
             <SectionHeader
               title="Generate Forecast"
@@ -803,21 +982,15 @@ export default function Analytics() {
             <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
               Horizon
             </label>
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              {[5, 10, 14, 30].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setSteps(n)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                    steps === n
-                      ? "bg-purple-500/30 border-purple-400/50 text-white"
-                      : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
-                  }`}
-                >
-                  {n} {freq.units}
-                </button>
-              ))}
-            </div>
+            <PillGroup
+              tone="purple"
+              value={steps}
+              onChange={setSteps}
+              options={[5, 10, 14, 30].map((n) => ({
+                value: n,
+                label: `${n} ${freq.units}`,
+              }))}
+            />
             {dateColumn && lastDateLabel && (
               <p className="text-xs text-gray-500 mt-1.5">
                 Forecasting from {lastDateLabel} forward at {frequency} cadence.
@@ -851,9 +1024,7 @@ export default function Analytics() {
               loading={isPredicting}
               disabled={!metrics}
             >
-              {isPredicting
-                ? "Forecasting…"
-                : `Generate ${steps}-${freq.unit} Forecast`}
+              {isPredicting ? "Forecasting…" : `Generate ${steps}-${freq.unit} Forecast`}
             </Button>
             {!metrics && (
               <p className="text-xs text-amber-300/80 mt-3 flex items-start gap-1.5">
@@ -874,7 +1045,7 @@ export default function Analytics() {
               title="Time Series & Forecast"
               subtitle={
                 hasData
-                  ? `Column “${column}” · ${actual.length.toLocaleString()} actual points${
+                  ? `Column “${column}” · ${visibleActual.length.toLocaleString()} of ${actual.length.toLocaleString()} points shown${
                       predictions.length ? ` · ${predictions.length} forecast steps` : ""
                     }`
                   : "Upload a dataset to begin"
@@ -888,118 +1059,135 @@ export default function Analytics() {
                 hasData && (
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     {dateColumn && <Badge tone="emerald">{frequency}</Badge>}
-                    <span className="hidden sm:flex items-center gap-1.5 text-xs">
-                      <span className="w-3 h-1 rounded" style={{ background: COLORS.actual }} />
-                      <span className="text-gray-300">Actual</span>
-                    </span>
-                    {predictions.length > 0 && (
-                      <span className="hidden sm:flex items-center gap-1.5 text-xs">
-                        <span className="w-3 h-1 rounded border-t-2 border-dashed" style={{ borderColor: COLORS.predicted }} />
-                        <span className="text-gray-300">Forecast</span>
-                      </span>
-                    )}
+                    <PillGroup
+                      tone="blue"
+                      value={dateRange}
+                      onChange={setDateRange}
+                      options={rangeOptions}
+                      small
+                    />
                   </div>
                 )
               }
             />
 
             {hasData ? (
-              <div className="w-full h-[360px] sm:h-[440px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={COLORS.actualFill} stopOpacity={0.4} />
-                        <stop offset="100%" stopColor={COLORS.actualFill} stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="bandFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={COLORS.band} stopOpacity={0.25} />
-                        <stop offset="100%" stopColor={COLORS.band} stopOpacity={0.04} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={COLORS.axis}
-                      tickLine={false}
-                      axisLine={{ stroke: COLORS.grid }}
-                      minTickGap={48}
-                    />
-                    <YAxis stroke={COLORS.axis} tickLine={false} axisLine={{ stroke: COLORS.grid }} width={50} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ stroke: COLORS.axis, strokeDasharray: "3 3" }} />
-
-                    {predictions.length > 0 && (
-                      <>
-                        <Area
-                          type="monotone"
-                          dataKey="bandHigh"
-                          stroke="none"
-                          fill="url(#bandFill)"
-                          isAnimationActive={false}
-                          connectNulls
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="bandLow"
-                          stroke="none"
-                          fill="#0b132b"
-                          isAnimationActive={false}
-                          connectNulls
-                        />
-                      </>
-                    )}
-
-                    <Area
-                      type="monotone"
-                      dataKey="actual"
-                      name="Actual"
-                      stroke={COLORS.actual}
-                      strokeWidth={2}
-                      fill="url(#actualFill)"
-                      isAnimationActive={false}
-                      connectNulls={false}
-                    />
-
-                    <Line
-                      type="monotone"
-                      dataKey="predicted"
-                      name="Forecast"
-                      stroke={COLORS.predicted}
-                      strokeWidth={2.5}
-                      strokeDasharray="6 4"
-                      dot={{ fill: COLORS.predicted, r: 3 }}
-                      isAnimationActive={false}
-                      connectNulls={false}
-                    />
-
-                    {splitIdx !== null && predictions.length > 0 && (
-                      <ReferenceLine
-                        x={chartData[splitIdx]?.label}
-                        stroke="#a78bfa"
-                        strokeDasharray="3 3"
-                        label={{ value: "now", position: "top", fill: "#c4b5fd", fontSize: 11 }}
-                      />
-                    )}
-
-                    {actual.length > 30 && (
-                      <Brush
+              <>
+                <div className="hidden sm:flex items-center gap-4 mb-3 text-xs text-gray-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-1 rounded" style={{ background: COLORS.actual }} />
+                    Actual
+                  </span>
+                  {predictions.length > 0 && (
+                    <>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-1 rounded border-t-2 border-dashed" style={{ borderColor: COLORS.predicted }} />
+                        Forecast
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-2 rounded" style={{ background: "rgba(16,185,129,0.18)" }} />
+                        Confidence band (±RMSE)
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="w-full h-[360px] sm:h-[440px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={COLORS.actualFill} stopOpacity={0.4} />
+                          <stop offset="100%" stopColor={COLORS.actualFill} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="bandFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={COLORS.band} stopOpacity={0.25} />
+                          <stop offset="100%" stopColor={COLORS.band} stopOpacity={0.04} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+                      <XAxis
                         dataKey="label"
-                        height={24}
-                        stroke="#374151"
-                        fill="#0f172a"
-                        travellerWidth={8}
-                        startIndex={Math.max(0, chartData.length - 80)}
+                        stroke={COLORS.axis}
+                        tickLine={false}
+                        axisLine={{ stroke: COLORS.grid }}
+                        minTickGap={48}
                       />
-                    )}
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+                      <YAxis stroke={COLORS.axis} tickLine={false} axisLine={{ stroke: COLORS.grid }} width={50} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: COLORS.axis, strokeDasharray: "3 3" }} />
+
+                      {predictions.length > 0 && (
+                        <>
+                          <Area
+                            type="monotone"
+                            dataKey="bandHigh"
+                            stroke="none"
+                            fill="url(#bandFill)"
+                            isAnimationActive={false}
+                            connectNulls
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="bandLow"
+                            stroke="none"
+                            fill="#0b132b"
+                            isAnimationActive={false}
+                            connectNulls
+                          />
+                        </>
+                      )}
+
+                      <Area
+                        type="monotone"
+                        dataKey="actual"
+                        name="Actual"
+                        stroke={COLORS.actual}
+                        strokeWidth={2}
+                        fill="url(#actualFill)"
+                        isAnimationActive={false}
+                        connectNulls={false}
+                      />
+
+                      <Line
+                        type="monotone"
+                        dataKey="predicted"
+                        name="Forecast"
+                        stroke={COLORS.predicted}
+                        strokeWidth={2.5}
+                        strokeDasharray="6 4"
+                        dot={{ fill: COLORS.predicted, r: 3 }}
+                        isAnimationActive={false}
+                        connectNulls={false}
+                      />
+
+                      {splitIdx !== null && predictions.length > 0 && chartData[splitIdx] && (
+                        <ReferenceLine
+                          x={chartData[splitIdx].label}
+                          stroke="#a78bfa"
+                          strokeDasharray="3 3"
+                          label={{ value: "now", position: "top", fill: "#c4b5fd", fontSize: 11 }}
+                        />
+                      )}
+
+                      {visibleActual.length > 30 && (
+                        <Brush
+                          dataKey="label"
+                          height={24}
+                          stroke="#374151"
+                          fill="#0f172a"
+                          travellerWidth={8}
+                          startIndex={Math.max(0, chartData.length - 80)}
+                        />
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
             ) : (
               <EmptyState />
             )}
           </Card>
 
-          {/* Forecast bars + tiles */}
+          {/* Forecast tiles + bars */}
           {predictions.length > 0 && (
             <Card className="p-6">
               <SectionHeader
@@ -1015,7 +1203,7 @@ export default function Analytics() {
               />
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
                 {predictions.slice(0, 10).map((p, i) => {
-                  const tile = chartData[actual.length + i];
+                  const tile = chartData[visibleActual.length + i];
                   return (
                     <div
                       key={i}
@@ -1046,7 +1234,16 @@ export default function Analytics() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
-                    <XAxis dataKey="step" stroke={COLORS.axis} tickLine={false} axisLine={false} interval={0} angle={-15} dy={6} height={40} />
+                    <XAxis
+                      dataKey="step"
+                      stroke={COLORS.axis}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      angle={-15}
+                      dy={6}
+                      height={40}
+                    />
                     <YAxis stroke={COLORS.axis} tickLine={false} axisLine={false} width={50} />
                     <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
                     <Bar dataKey="value" name="Forecast" fill="url(#barGrad)" radius={[6, 6, 0, 0]} isAnimationActive={false} />
@@ -1096,6 +1293,49 @@ export default function Analytics() {
 }
 
 // ---------------------------------------------------------------------------
+// Column picker — pills for ≤6 options, dropdown for more
+// ---------------------------------------------------------------------------
+
+function ColumnPicker({ available, value, onChange, disabled }) {
+  if (!available || available.length === 0) {
+    return <Skeleton className="h-9 w-full" />;
+  }
+  if (available.length === 1) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300">
+        <span className="text-gray-500">Only:</span>
+        <span className="font-medium text-white truncate">{available[0]}</span>
+      </div>
+    );
+  }
+  if (available.length <= 6) {
+    return (
+      <PillGroup
+        tone="emerald"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        options={available.map((c) => ({ value: c, label: c }))}
+      />
+    );
+  }
+  return (
+    <select
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="w-full px-3 py-2.5 rounded-lg bg-black/30 border border-white/10 text-white text-sm focus:border-emerald-400/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
+    >
+      {available.map((c) => (
+        <option key={c} value={c} className="bg-gray-900">
+          {c}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Empty state
 // ---------------------------------------------------------------------------
 
@@ -1109,9 +1349,9 @@ function EmptyState() {
       </div>
       <h3 className="text-lg font-semibold text-white mb-2">No data yet</h3>
       <p className="text-sm text-gray-400 max-w-sm mx-auto">
-        Drop a CSV in the upload card on the left. The first numeric column will
-        be detected automatically. If a date column is present, rows are sorted
-        chronologically before training.
+        Drop a CSV in the upload card on the left. Numeric columns will be detected
+        and you can switch between them. If a date column is present, rows are
+        sorted chronologically before training.
       </p>
     </div>
   );
