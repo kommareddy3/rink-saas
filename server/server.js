@@ -220,9 +220,10 @@ app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => 
   }
 });
 
-app.post("/api/train", requireAuth, async (_req, res) => {
+app.post("/api/train", requireAuth, async (req, res) => {
   try {
-    const r = await axios.post(`${ML_API_URL}/train`, null, { timeout: 120_000 });
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const r = await axios.post(`${ML_API_URL}/train`, body, { timeout: 120_000 });
     res.json(r.data);
   } catch (err) {
     handleProxyError(err, res, "Training failed");

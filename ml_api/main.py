@@ -3,15 +3,23 @@ RINK Global Services - ML Forecasting Service
 ==============================================
 
 FastAPI service that exposes time-series training and recursive
-multi-step forecasting endpoints. The model uses engineered lag and
-rolling-window features fed into a Gradient Boosting regressor.
+multi-step forecasting endpoints.
+
+Pipeline:
+  * Detect a date column (date / timestamp / time / datetime / ds / period,
+    or first parseable string column).
+  * Sort the dataset ascending by date so the *last* row is the most recent.
+  * Detect the value column (preferred names, or first numeric column).
+  * Engineer lag and rolling features and fit a GradientBoostingRegressor
+    with a held-out validation split.
+  * Predict recursively for `steps` future periods.
 
 Endpoints:
   GET  /health      Liveness probe
   POST /upload      Accept a CSV file (multipart) and persist it
   POST /train       Train the model on the persisted CSV
   POST /predict     Recursively forecast `steps` future values from `values`
-  GET  /data        Return the most recent N values from the persisted CSV
+  GET  /data        Return the most recent N values (chronologically sorted)
 """
 
 from __future__ import annotations
@@ -20,7 +28,7 @@ import io
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import joblib
 import numpy as np
@@ -50,6 +58,14 @@ META_PATH = DATA_DIR / "meta.joblib"
 PREFERRED_VALUE_COLUMNS = [
     "value", "y", "target", "close", "price", "pmms30",
 ]
+DATE_COLUMN_CANDIDATES = [
+    "date", "Date", "DATE",
+    "timestamp", "Timestamp", "TIMESTAMP",
+    "time", "Time", "TIME",
+    "datetime", "DateTime", "DATETIME",
+    "ds", "DS",
+    "period", "Period", "PERIOD",
+]
 
 LAGS = [1, 2, 3, 5, 7]
 ROLLING_WINDOWS = [3, 7]
@@ -67,7 +83,7 @@ ALLOWED_ORIGINS = [
 # App + CORS
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="RINK ML Service", version="1.0.0")
+app = FastAPI(title="RINK ML Service", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -84,13 +100,21 @@ app.add_middleware(
 
 class InputData(BaseModel):
     values: List[float] = Field(..., min_length=1)
-    steps: int = Field(5, ge=1, le=200)
+    steps: int = Field(10, ge=1, le=200)
+
+
+class TrainRequest(BaseModel):
+    column: Optional[str] = None
 
 
 class TrainResponse(BaseModel):
     status: str
     rows_used: int
     column: str
+    available_columns: List[str] = []
+    date_column: Optional[str] = None
+    frequency: str = "unknown"
+    days_per_step: Optional[float] = None
     rmse: float
     mae: float
 
@@ -101,18 +125,82 @@ class PredictResponse(BaseModel):
 
 class DataResponse(BaseModel):
     column: str
+    available_columns: List[str] = []
     data: List[float]
+    dates: Optional[List[str]] = None
+    frequency: str = "unknown"
+    date_column: Optional[str] = None
+    days_per_step: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Date detection + frequency inference
 # ---------------------------------------------------------------------------
 
-def _detect_value_column(df: pd.DataFrame) -> str:
-    for col in PREFERRED_VALUE_COLUMNS:
+def _detect_date_column(df: pd.DataFrame) -> Optional[str]:
+    """Return the name of a date column, or None."""
+    for col in DATE_COLUMN_CANDIDATES:
         if col in df.columns:
+            try:
+                parsed = pd.to_datetime(df[col], errors="coerce")
+                if parsed.notna().sum() >= max(2, int(0.5 * len(df))):
+                    return col
+            except Exception:
+                pass
+
+    # Fall back to scanning string columns for something parseable as a date.
+    for col in df.columns:
+        if df[col].dtype != "object":
+            continue
+        sample = df[col].dropna().head(20)
+        if sample.empty:
+            continue
+        try:
+            parsed = pd.to_datetime(sample, errors="coerce")
+            if parsed.notna().sum() >= max(2, int(0.6 * len(sample))):
+                return col
+        except Exception:
+            continue
+    return None
+
+
+def _infer_frequency(dates: pd.Series) -> Tuple[str, Optional[float]]:
+    """Given an ascending DatetimeIndex/Series, return (label, days_per_step)."""
+    sorted_dates = pd.to_datetime(dates).dropna().sort_values().reset_index(drop=True)
+    if len(sorted_dates) < 2:
+        return ("unknown", None)
+    deltas = sorted_dates.diff().dropna()
+    median_seconds = deltas.dt.total_seconds().median()
+    if median_seconds is None or np.isnan(median_seconds):
+        return ("unknown", None)
+    median_days = median_seconds / 86400.0
+
+    if median_days < 0.5:
+        return (f"every {median_seconds/3600:.1f}h", median_days or 1 / 24)
+    if abs(median_days - 1) < 0.4:
+        return ("daily", 1.0)
+    if abs(median_days - 7) < 1.0:
+        return ("weekly", 7.0)
+    if 27 <= median_days <= 32:
+        return ("monthly", 30.0)
+    if 88 <= median_days <= 95:
+        return ("quarterly", 91.0)
+    if 360 <= median_days <= 370:
+        return ("yearly", 365.0)
+    return (f"every {median_days:.1f} days", median_days)
+
+
+def _list_numeric_columns(df: pd.DataFrame, exclude: Optional[List[str]] = None) -> List[str]:
+    excluded = set(exclude or [])
+    return [c for c in df.select_dtypes(include=[np.number]).columns if c not in excluded]
+
+
+def _detect_value_column(df: pd.DataFrame, exclude: Optional[List[str]] = None) -> str:
+    excluded = set(exclude or [])
+    for col in PREFERRED_VALUE_COLUMNS:
+        if col in df.columns and col not in excluded:
             return col
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = _list_numeric_columns(df, exclude=exclude)
     if not numeric_cols:
         raise HTTPException(
             status_code=400,
@@ -120,6 +208,50 @@ def _detect_value_column(df: pd.DataFrame) -> str:
         )
     return numeric_cols[0]
 
+
+def _resolve_value_column(
+    df: pd.DataFrame,
+    requested: Optional[str] = None,
+    exclude: Optional[List[str]] = None,
+) -> str:
+    """Choose a column in priority order:
+    1. The explicit `requested` if it exists and is numeric.
+    2. The column saved in model meta (if it's still present).
+    3. The auto-detected column.
+    """
+    available = _list_numeric_columns(df, exclude=exclude)
+    if requested and requested in available:
+        return requested
+    if META_PATH.exists():
+        try:
+            meta = joblib.load(META_PATH)
+            saved = meta.get("column") if isinstance(meta, dict) else None
+            if saved and saved in available:
+                return saved
+        except Exception:
+            pass
+    return _detect_value_column(df, exclude=exclude)
+
+
+def _prepare_dataset() -> Tuple[pd.DataFrame, Optional[str], str, Optional[float]]:
+    """Load CSV, detect + parse date column, sort ascending. Returns
+    (df, date_column_or_None, frequency_label, days_per_step_or_None)."""
+    df = _load_dataset()
+    date_col = _detect_date_column(df)
+    if date_col is None:
+        return df, None, "unknown", None
+
+    df = df.copy()
+    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+    df = df.dropna(subset=[date_col])
+    df = df.sort_values(date_col).reset_index(drop=True)
+    frequency, days_per_step = _infer_frequency(df[date_col])
+    return df, date_col, frequency, days_per_step
+
+
+# ---------------------------------------------------------------------------
+# Feature engineering helpers
+# ---------------------------------------------------------------------------
 
 def _build_features(series: pd.Series) -> pd.DataFrame:
     """Build lag + rolling features from a 1-D numeric series."""
@@ -132,7 +264,6 @@ def _build_features(series: pd.Series) -> pd.DataFrame:
 
 
 def _features_from_history(history: List[float]) -> np.ndarray:
-    """Build a single feature row from the most recent history."""
     n_needed = max(max(LAGS), max(ROLLING_WINDOWS) + 1)
     if len(history) < n_needed:
         raise HTTPException(
@@ -162,12 +293,12 @@ def _load_dataset() -> pd.DataFrame:
     return df
 
 
-def _save_model(model: GradientBoostingRegressor, column: str) -> None:
+def _save_model(model: GradientBoostingRegressor, meta: dict) -> None:
     joblib.dump(model, MODEL_PATH)
-    joblib.dump({"column": column}, META_PATH)
+    joblib.dump(meta, META_PATH)
 
 
-def _load_model() -> tuple[GradientBoostingRegressor, str]:
+def _load_model() -> Tuple[GradientBoostingRegressor, dict]:
     if not MODEL_PATH.exists() or not META_PATH.exists():
         raise HTTPException(
             status_code=409,
@@ -175,7 +306,7 @@ def _load_model() -> tuple[GradientBoostingRegressor, str]:
         )
     model = joblib.load(MODEL_PATH)
     meta = joblib.load(META_PATH)
-    return model, meta["column"]
+    return model, meta
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +333,6 @@ async def upload(file: UploadFile = File(...)) -> dict:
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large (max 10MB).")
 
-    # Validate the CSV parses before persisting
     try:
         pd.read_csv(io.BytesIO(contents))
     except Exception as exc:
@@ -214,9 +344,11 @@ async def upload(file: UploadFile = File(...)) -> dict:
 
 
 @app.post("/train", response_model=TrainResponse)
-def train() -> TrainResponse:
-    df = _load_dataset()
-    column = _detect_value_column(df)
+def train(req: TrainRequest = TrainRequest()) -> TrainResponse:
+    df, date_col, frequency, days_per_step = _prepare_dataset()
+    excluded = [date_col] if date_col else None
+    column = _resolve_value_column(df, requested=req.column, exclude=excluded)
+    available = _list_numeric_columns(df, exclude=excluded)
     series = pd.to_numeric(df[column], errors="coerce").dropna()
 
     if len(series) < MIN_TRAIN_ROWS:
@@ -230,7 +362,6 @@ def train() -> TrainResponse:
     X = feats[feature_cols].values
     y = feats["y"].values
 
-    # Hold out the last 20% as a validation set
     split = max(1, int(len(X) * 0.8))
     X_train, X_val = X[:split], X[split:]
     y_train, y_val = y[:split], y[split:]
@@ -248,13 +379,28 @@ def train() -> TrainResponse:
     rmse = float(np.sqrt(mean_squared_error(val_target, val_pred)))
     mae = float(mean_absolute_error(val_target, val_pred))
 
-    _save_model(model, column)
-    log.info("Trained on %d rows (col=%s) RMSE=%.4f MAE=%.4f", len(feats), column, rmse, mae)
+    _save_model(
+        model,
+        {
+            "column": column,
+            "date_column": date_col,
+            "frequency": frequency,
+            "days_per_step": days_per_step,
+        },
+    )
+    log.info(
+        "Trained on %d rows (col=%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
+        len(feats), column, date_col, frequency, rmse, mae,
+    )
 
     return TrainResponse(
         status="trained",
         rows_used=len(feats),
         column=column,
+        available_columns=available,
+        date_column=date_col,
+        frequency=frequency,
+        days_per_step=days_per_step,
         rmse=rmse,
         mae=mae,
     )
@@ -262,11 +408,10 @@ def train() -> TrainResponse:
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(data: InputData) -> PredictResponse:
-    model, _column = _load_model()
+    model, _meta = _load_model()
 
     history = list(data.values)
     predictions: List[float] = []
-
     for _ in range(data.steps):
         x = _features_from_history(history)
         yhat = float(model.predict(x)[0])
@@ -277,12 +422,41 @@ def predict(data: InputData) -> PredictResponse:
 
 
 @app.get("/data", response_model=DataResponse)
-def get_data(limit: int = 100) -> DataResponse:
+def get_data(limit: int = 500, column: Optional[str] = None) -> DataResponse:
     if not DATASET_PATH.exists():
-        # Fallback so the dashboard renders something on a fresh deploy
-        return DataResponse(column="demo", data=[7.1, 7.2, 7.3, 7.4, 7.5])
+        return DataResponse(
+            column="demo",
+            available_columns=["demo"],
+            data=[7.1, 7.2, 7.3, 7.4, 7.5],
+            dates=None,
+            frequency="unknown",
+            date_column=None,
+            days_per_step=None,
+        )
 
-    df = pd.read_csv(DATASET_PATH)
-    column = _detect_value_column(df)
-    series = pd.to_numeric(df[column], errors="coerce").dropna().tail(max(1, min(limit, 5000)))
-    return DataResponse(column=column, data=series.astype(float).tolist())
+    df, date_col, frequency, days_per_step = _prepare_dataset()
+    excluded = [date_col] if date_col else None
+    chosen = _resolve_value_column(df, requested=column, exclude=excluded)
+    available = _list_numeric_columns(df, exclude=excluded)
+    series_raw = pd.to_numeric(df[chosen], errors="coerce")
+    mask = series_raw.notna()
+
+    series = series_raw[mask]
+    dates_iso: Optional[List[str]] = None
+    if date_col:
+        dates_iso = df.loc[mask, date_col].dt.strftime("%Y-%m-%d").tolist()
+
+    n = max(1, min(limit, 5000))
+    series = series.tail(n)
+    if dates_iso is not None:
+        dates_iso = dates_iso[-n:]
+
+    return DataResponse(
+        column=chosen,
+        available_columns=available,
+        data=series.astype(float).tolist(),
+        dates=dates_iso,
+        frequency=frequency,
+        date_column=date_col,
+        days_per_step=days_per_step,
+    )
