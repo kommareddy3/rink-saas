@@ -199,8 +199,8 @@ async def upload(file: UploadFile = File(...)) -> dict:
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-    if len(contents) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="File too large (max 50MB).")
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB).")
 
     # Validate the CSV parses before persisting
     try:

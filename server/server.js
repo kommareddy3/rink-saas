@@ -102,9 +102,10 @@ async function requireAuth(req, res, next) {
 }
 
 // Multer in-memory: required because Vercel's filesystem is read-only.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+  limits: { fileSize: MAX_UPLOAD_BYTES },
 });
 
 // Optionally serve the built frontend if a sibling client/dist exists.
@@ -282,7 +283,7 @@ app.use((err, _req, res, _next) => {
     return res.status(403).json({ error: err.message });
   }
   if (err?.code === "LIMIT_FILE_SIZE") {
-    return res.status(413).json({ error: "File too large (max 50MB)." });
+    return res.status(413).json({ error: "File too large (max 10MB)." });
   }
   console.error("[error]", err);
   res.status(500).json({ error: "Internal server error" });
