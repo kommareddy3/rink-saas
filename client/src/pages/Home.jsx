@@ -67,7 +67,7 @@ export default function Home() {
       </section>
 
       {/* WHAT WE DO */}
-      <section className="px-4 sm:px-6 lg:px-10 py-20 bg-gradient-to-b from-transparent to-black/20">
+      <section id="features" className="px-4 sm:px-6 lg:px-10 py-20 bg-gradient-to-b from-transparent to-black/20 scroll-mt-24">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-bold text-center mb-16">What We Do</h2>
 
@@ -142,7 +142,7 @@ export default function Home() {
       </section>
 
       {/* USE CASES */}
-      <section className="px-4 sm:px-6 lg:px-10 py-20">
+      <section id="use-cases" className="px-4 sm:px-6 lg:px-10 py-20 scroll-mt-24">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold mb-8">Perfect For</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -178,6 +178,19 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ABOUT */}
+      <section id="about" className="px-4 sm:px-6 lg:px-10 py-20 bg-gradient-to-b from-transparent to-black/20 scroll-mt-24">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-4">Built for serious forecasting</h2>
+          <p className="text-gray-300 text-lg">
+            RINK is engineered for teams that move fast on hard data problems —
+            whether that's revenue forecasting, demand planning, or sensor
+            anomaly detection. We handle the feature engineering, validation
+            splits, and confidence bands so your team can focus on decisions.
+          </p>
+        </div>
+      </section>
+
       {/* CLIENT PORTAL CTA */}
       <section className="text-center py-20 px-4 sm:px-6 lg:px-10 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
         <div className="max-w-2xl mx-auto">
@@ -190,14 +203,6 @@ export default function Home() {
           </a>
         </div>
       </section>
-
-      {/* FOOTER */}
-      <footer className="text-center py-10 px-4 sm:px-6 lg:px-10 border-t border-white/20 text-gray-400">
-        <div className="max-w-4xl mx-auto">
-          <p className="mb-4">© {new Date().getFullYear()} RINK Global Services — Intelligent Data Analytics & Prediction Solutions</p>
-          <p className="text-sm">Research Innovation & Next-gen Knowledge</p>
-        </div>
-      </footer>
 
       {/* AI Assistant */}
       <AIAssistant />
