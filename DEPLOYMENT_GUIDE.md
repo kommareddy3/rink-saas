@@ -3,13 +3,14 @@
 This guide assumes you own `rinkglobal.com` and have GitHub, Vercel, Render,
 Supabase, and Groq accounts.
 
-You will deploy three services:
+You will deploy four services:
 
 | Service       | Hosting | URL (suggested)              |
 | ------------- | ------- | ---------------------------- |
 | Frontend      | Vercel  | `https://rinkglobal.com`     |
 | API gateway   | Vercel  | `https://api.rinkglobal.com` |
 | ML service    | Render  | `https://rink-ml.onrender.com` (kept private; only the gateway calls it) |
+| Documentation | Vercel  | `https://docs.rinkglobal.com` |
 
 ## 0. One-time prep
 
@@ -96,6 +97,19 @@ the root `package.json` (so Vercel knows what to `npm install`).
 7. **Add custom domain:** Settings → Domains → add `rinkglobal.com` and
    `www.rinkglobal.com`. Follow Vercel's DNS instructions (typically point your
    apex `A`/`ALIAS` records and `www` `CNAME` at Vercel).
+
+## 3b. Deploy the documentation site to Vercel
+
+1. <https://vercel.com> → **Add New Project** → import the same GitHub repo.
+2. **Project name:** `rink-docs`.
+3. **Root directory:** `docs`.
+4. **Framework preset:** Other (auto-detected as VitePress).
+5. No environment variables required.
+6. Deploy. Note the URL.
+7. **Add custom domain:** Settings → Domains → add `docs.rinkglobal.com`.
+   Vercel will show the DNS record to create (usually
+   `CNAME docs → cname.vercel-dns.com`).
+8. Open <https://docs.rinkglobal.com> — you should see the docs landing page.
 
 ## 4. Configure Supabase
 

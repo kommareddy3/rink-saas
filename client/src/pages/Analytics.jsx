@@ -24,6 +24,7 @@ const MIN_PREDICT_VALUES = 7; // matches max(LAGS) in the ML service
 const FETCH_LIMIT = 5000;     // ML API hard cap
 const LS_KEY_COLUMN = "rink:selectedColumn";
 const LS_KEY_RANGE = "rink:dateRange";
+const DOCS_URL = "https://docs.rinkglobal.com";
 
 const COLORS = {
   actual: "#60a5fa",
@@ -807,12 +808,29 @@ export default function Analytics() {
             chronologically, and forecast the next horizon at the inferred cadence.
           </p>
         </div>
-        <Button variant="ghost" onClick={() => fetchData()} loading={isLoadingData}>
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Refresh data
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href={`${DOCS_URL}/guides/forecasting`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open the docs in a new tab"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-white bg-white/5 hover:bg-white/10 border border-white/10 transition"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093M12 17h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="hidden sm:inline">Help</span>
+            <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+          <Button variant="ghost" onClick={() => fetchData()} loading={isLoadingData}>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+        </div>
       </div>
 
       {/* KPI strip */}

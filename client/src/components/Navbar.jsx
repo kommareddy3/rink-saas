@@ -27,6 +27,8 @@ function avatarColor(seed) {
 // Icons
 // ---------------------------------------------------------------------------
 
+const DOCS_URL = "https://docs.rinkglobal.com";
+
 const Icon = {
   sparkles: (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -41,6 +43,16 @@ const Icon = {
   help: (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093M12 17h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  docs: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    </svg>
+  ),
+  external: (
+    <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
     </svg>
   ),
   signOut: (
@@ -123,11 +135,13 @@ export default function Navbar() {
   const publicLinks = [
     { to: "/#features", label: "Features", external: true },
     { to: "/#use-cases", label: "Use Cases", external: true },
+    { to: DOCS_URL, label: "Docs", external: true, newTab: true, icon: Icon.docs },
     { to: "/contact", label: "Contact" },
   ];
   // Authed links — nav for signed-in users.
   const authedLinks = [
     { to: "/analytics", label: "Workspace", icon: Icon.workspace },
+    { to: DOCS_URL, label: "Docs", external: true, newTab: true, icon: Icon.docs },
     { to: "/contact", label: "Help", icon: Icon.help },
   ];
 
@@ -154,10 +168,13 @@ export default function Navbar() {
               <a
                 key={l.to}
                 href={l.to}
+                target={l.newTab ? "_blank" : undefined}
+                rel={l.newTab ? "noopener noreferrer" : undefined}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition"
               >
                 {l.icon}
                 {l.label}
+                {l.newTab && Icon.external}
               </a>
             ) : (
               <NavLink
@@ -279,7 +296,8 @@ function UserMenu({ user, displayName, open, setOpen, onSignOut, menuRef }) {
           </div>
 
           <MenuItem to="/analytics" icon={Icon.workspace} label="Workspace" hint="Forecasting tools" />
-          <MenuItem to="/contact" icon={Icon.help} label="Help & support" hint="Talk to the team" />
+          <MenuItem href={DOCS_URL} external icon={Icon.docs} label="Documentation" hint="Guides &amp; API reference" />
+          <MenuItem to="/contact" icon={Icon.help} label="Help &amp; support" hint="Talk to the team" />
 
           <div className="border-t border-white/5 my-1" />
 
@@ -300,18 +318,39 @@ function UserMenu({ user, displayName, open, setOpen, onSignOut, menuRef }) {
   );
 }
 
-function MenuItem({ to, icon, label, hint }) {
+function MenuItem({ to, href, external, icon, label, hint }) {
+  const body = (
+    <>
+      <span className="mt-0.5 text-gray-400">{icon}</span>
+      <span className="flex-1">
+        <span className="flex items-center gap-1.5 text-sm text-white">
+          {label}
+          {external && Icon.external}
+        </span>
+        {hint && <span className="block text-xs text-gray-500">{hint}</span>}
+      </span>
+    </>
+  );
+  if (external && href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        role="menuitem"
+        className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/5 transition"
+      >
+        {body}
+      </a>
+    );
+  }
   return (
     <Link
       to={to}
       role="menuitem"
       className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/5 transition"
     >
-      <span className="mt-0.5 text-gray-400">{icon}</span>
-      <span>
-        <span className="block text-sm text-white">{label}</span>
-        {hint && <span className="block text-xs text-gray-500">{hint}</span>}
-      </span>
+      {body}
     </Link>
   );
 }
@@ -342,6 +381,7 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
               </div>
             </div>
             <DrawerLink to="/analytics" icon={Icon.workspace} label="Workspace" onClose={onClose} />
+            <DrawerExternal href={DOCS_URL} icon={Icon.docs} label="Documentation" onClose={onClose} />
             <DrawerLink to="/contact" icon={Icon.help} label="Help & support" onClose={onClose} />
             <button
               type="button"
@@ -356,6 +396,7 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
           <>
             <a href="/#features" onClick={onClose} className="block px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5">Features</a>
             <a href="/#use-cases" onClick={onClose} className="block px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5">Use Cases</a>
+            <DrawerExternal href={DOCS_URL} icon={Icon.docs} label="Documentation" onClose={onClose} />
             <DrawerLink to="/contact" icon={Icon.help} label="Contact" onClose={onClose} />
             <div className="border-t border-white/5 my-2" />
             <Link
@@ -396,5 +437,21 @@ function DrawerLink({ to, icon, label, onClose }) {
       <span className="text-gray-400">{icon}</span>
       {label}
     </NavLink>
+  );
+}
+
+function DrawerExternal({ href, icon, label, onClose }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={onClose}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5 transition"
+    >
+      <span className="text-gray-400">{icon}</span>
+      <span className="flex-1">{label}</span>
+      {Icon.external}
+    </a>
   );
 }
