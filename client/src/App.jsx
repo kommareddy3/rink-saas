@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Analytics from "./pages/Analytics";
 import Contact from "./pages/Contact";
+import Profile from "./pages/Profile";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
 
@@ -25,6 +26,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <Analytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
                   </ProtectedRoute>
                 }
               />

@@ -35,6 +35,13 @@ const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 // Optional shared secret between Express ↔ FastAPI. Set the same value on
 // both deployments to lock the ML service to gateway traffic only.
 const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "";
+// Resend (transactional emails). Optional — when unset, the welcome-email
+// route returns 503.
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const WELCOME_FROM_EMAIL =
+  process.env.WELCOME_FROM_EMAIL || "RINK <hello@rinkglobal.com>";
+const APP_URL = process.env.APP_URL || "https://rinkglobal.com";
+const DOCS_URL = process.env.DOCS_URL || "https://docs.rinkglobal.com";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
   "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com")
@@ -272,6 +279,98 @@ app.get("/api/data", requireAuth, async (req, res) => {
     res.json(r.data);
   } catch (err) {
     handleProxyError(err, res, "Data fetch failed");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Welcome email (Resend)
+// ---------------------------------------------------------------------------
+
+// HTML body kept inline so the function works without filesystem access on
+// Vercel. The canonical source is email-templates/welcome.html — keep them
+// in sync when you customise.
+const WELCOME_EMAIL_HTML = (vars) => `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Welcome to RINK</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111827;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f3f4f6;padding:40px 20px;"><tr><td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(15,23,42,0.08);">
+<tr><td style="background:linear-gradient(135deg,#0b1b3d 0%,#3b0764 100%);padding:40px 32px 36px;text-align:center;">
+<span style="font-size:24px;font-weight:700;letter-spacing:-0.02em;color:#ffffff;">RINK</span>
+<div style="font-weight:400;color:#93c5fd;font-size:11px;letter-spacing:0.25em;text-transform:uppercase;margin-top:4px;">Global Services</div>
+<h1 style="margin:24px 0 6px;font-size:30px;line-height:1.2;font-weight:700;color:#ffffff;">Welcome aboard, ${escapeHtml(vars.first_name)}!</h1>
+<p style="margin:0;font-size:15px;color:#cbd5e1;">Your forecasting workspace is ready.</p>
+</td></tr>
+<tr><td style="padding:36px 32px 8px;">
+<p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#374151;">Thanks for joining RINK. We built this platform for teams who need accurate, defensible forecasts without weeks of data-science setup.</p>
+<p style="margin:0 0 28px;font-size:16px;line-height:1.55;color:#374151;">Here's how to get the most out of it:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
+<tr><td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;"><table role="presentation" width="100%"><tr><td valign="top" width="34" style="padding-right:12px;"><div style="width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;color:#fff;text-align:center;line-height:30px;font-weight:700;font-size:14px;">1</div></td><td valign="top"><div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">Upload your first CSV</div><div style="font-size:13px;color:#6b7280;line-height:1.5;">Drag any time-series CSV (up to 10 MB) into the workspace. Date and value columns are detected automatically.</div></td></tr></table></td></tr>
+<tr><td style="height:8px;line-height:8px;font-size:0;">&nbsp;</td></tr>
+<tr><td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;"><table role="presentation" width="100%"><tr><td valign="top" width="34" style="padding-right:12px;"><div style="width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;color:#fff;text-align:center;line-height:30px;font-weight:700;font-size:14px;">2</div></td><td valign="top"><div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">Train and forecast</div><div style="font-size:13px;color:#6b7280;line-height:1.5;">Training is automatic on upload. Click Generate Forecast to predict the next N steps at your data's natural cadence.</div></td></tr></table></td></tr>
+<tr><td style="height:8px;line-height:8px;font-size:0;">&nbsp;</td></tr>
+<tr><td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;"><table role="presentation" width="100%"><tr><td valign="top" width="34" style="padding-right:12px;"><div style="width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;color:#fff;text-align:center;line-height:30px;font-weight:700;font-size:14px;">3</div></td><td valign="top"><div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">Ask the AI assistant</div><div style="font-size:13px;color:#6b7280;line-height:1.5;">Stuck on terminology or want a recommendation? Click the chat bubble in the bottom-right — it's a forecasting-savvy LLM.</div></td></tr></table></td></tr>
+</table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:8px auto 28px;"><tr><td align="center" style="border-radius:10px;background:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);"><a href="${vars.workspace_url}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">Open my workspace →</a></td></tr></table>
+<p style="margin:0 0 4px;text-align:center;font-size:13px;color:#6b7280;">Need help getting started? Check the <a href="${vars.docs_url}/getting-started" style="color:#3b82f6;text-decoration:none;">5-minute guide</a> or <a href="${vars.site_url}/contact" style="color:#3b82f6;text-decoration:none;">contact our team</a>.</p>
+</td></tr>
+<tr><td style="background:#f9fafb;padding:24px 32px;border-top:1px solid #e5e7eb;text-align:center;"><p style="margin:0 0 8px;font-size:12px;color:#6b7280;">You're receiving this because you just signed up at rinkglobal.com.</p><p style="margin:0;font-size:12px;color:#9ca3af;">© RINK Global Services</p></td></tr>
+</table></td></tr></table></body></html>`;
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// POST /api/welcome-email — sends a one-shot welcome via Resend. The client
+// is responsible for idempotency (it checks user_metadata.welcome_sent before
+// calling and sets the flag on success).
+app.post("/api/welcome-email", requireAuth, async (req, res) => {
+  if (!RESEND_API_KEY) {
+    return res
+      .status(503)
+      .json({ error: "Welcome email service is not configured." });
+  }
+  const userEmail = req.user?.email;
+  if (!userEmail) {
+    return res.status(400).json({ error: "Authenticated user has no email." });
+  }
+  const meta = req.user?.user_metadata || {};
+  const firstName = (meta.first_name || meta.display_name || "there").toString().trim();
+
+  const html = WELCOME_EMAIL_HTML({
+    first_name: firstName,
+    workspace_url: `${APP_URL}/analytics`,
+    docs_url: DOCS_URL,
+    site_url: APP_URL,
+  });
+
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: WELCOME_FROM_EMAIL,
+        to: [userEmail],
+        subject: "Welcome to RINK — let's forecast",
+        html,
+      }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      console.error("[welcome-email] resend error:", r.status, data);
+      return res.status(r.status).json({ error: data?.message || "Resend rejected the request." });
+    }
+    res.json({ status: "sent", id: data?.id || null });
+  } catch (err) {
+    console.error("[welcome-email] network error:", err?.message || err);
+    res.status(502).json({ error: "Failed to reach email provider." });
   }
 });
 

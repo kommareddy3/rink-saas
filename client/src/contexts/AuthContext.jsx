@@ -71,6 +71,27 @@ async function wipeServerData(token) {
   }
 }
 
+// Best-effort POST /api/welcome-email. Returns true on success so the caller
+// can flip the welcome_sent metadata flag.
+async function sendWelcomeEmail(token) {
+  if (!token) return false;
+  try {
+    await axios.post(
+      `${API_BASE_URL}/api/welcome-email`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+    );
+    return true;
+  } catch (err) {
+    // 503 = email service not configured — that's fine, just skip silently.
+    const status = err?.response?.status;
+    if (status !== 503) {
+      console.warn("[auth] welcome email failed:", err?.message || err);
+    }
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -126,6 +147,19 @@ export function AuthProvider({ children }) {
         if (event === "SIGNED_IN") {
           writeLastActivity(Date.now());
           setRecoveryActive(false);
+          // Send the welcome email once per account.
+          if (newSession?.user && !newSession.user.user_metadata?.welcome_sent) {
+            const token = newSession.access_token;
+            sendWelcomeEmail(token).then((ok) => {
+              if (!ok) return;
+              supabase.auth
+                .updateUser({ data: { welcome_sent: true } })
+                .then(({ data }) => {
+                  if (mounted && data?.user) setUser(data.user);
+                })
+                .catch(() => {});
+            });
+          }
         }
         if (event === "SIGNED_OUT") {
           clearLastActivity();
@@ -265,6 +299,30 @@ export function AuthProvider({ children }) {
     return { data, error };
   };
 
+  // Update user metadata (first_name, last_name, phone, etc).
+  // Pass null for a field to clear it.
+  const updateProfile = async ({ firstName, lastName, phone }) => {
+    const meta = { ...(user?.user_metadata || {}) };
+    if (firstName !== undefined) meta.first_name = firstName?.trim() || null;
+    if (lastName !== undefined) meta.last_name = lastName?.trim() || null;
+    if (phone !== undefined) meta.phone = phone?.trim() || null;
+    // Recompute the combined display name when name fields change.
+    if (firstName !== undefined || lastName !== undefined) {
+      const combined = `${meta.first_name ?? ""} ${meta.last_name ?? ""}`.trim();
+      meta.display_name = combined || null;
+    }
+    const { data, error } = await supabase.auth.updateUser({ data: meta });
+    if (data?.user) setUser(data.user);
+    return { data, error };
+  };
+
+  // Trigger Supabase's "change email" flow. Supabase sends a verification
+  // link to the NEW address; the change isn't effective until clicked.
+  const updateEmail = async (newEmail) => {
+    const { data, error } = await supabase.auth.updateUser({ email: newEmail });
+    return { data, error };
+  };
+
   const resendConfirmation = async (email) => {
     const { data, error } = await supabase.auth.resend({
       type: "signup",
@@ -296,6 +354,8 @@ export function AuthProvider({ children }) {
       signOut,
       resetPasswordForEmail,
       updatePassword,
+      updateProfile,
+      updateEmail,
       resendConfirmation,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

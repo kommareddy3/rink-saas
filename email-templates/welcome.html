@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to RINK</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111827;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f3f4f6;padding:40px 20px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(15,23,42,0.08);">
+
+            <!-- Hero header -->
+            <tr>
+              <td style="background:linear-gradient(135deg,#0b1b3d 0%,#3b0764 100%);padding:40px 32px 36px;text-align:center;">
+                <span style="font-size:24px;font-weight:700;letter-spacing:-0.02em;color:#ffffff;">RINK</span>
+                <div style="font-weight:400;color:#93c5fd;font-size:11px;letter-spacing:0.25em;text-transform:uppercase;margin-top:4px;">Global Services</div>
+                <h1 style="margin:24px 0 6px;font-size:30px;line-height:1.2;font-weight:700;color:#ffffff;">
+                  Welcome aboard, {{first_name}}!
+                </h1>
+                <p style="margin:0;font-size:15px;color:#cbd5e1;">
+                  Your forecasting workspace is ready.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:36px 32px 8px;">
+                <p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#374151;">
+                  Thanks for joining RINK. We built this platform for teams
+                  who need accurate, defensible forecasts without
+                  weeks of data-science setup.
+                </p>
+                <p style="margin:0 0 28px;font-size:16px;line-height:1.55;color:#374151;">
+                  Here's how to get the most out of it:
+                </p>
+
+                <!-- Steps -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
+                  <tr>
+                    <td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;">
+                      <table role="presentation" width="100%"><tr>
+                        <td valign="top" width="34" style="padding-right:12px;">
+                          <div style="width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;color:#fff;text-align:center;line-height:30px;font-weight:700;font-size:14px;">1</div>
+                        </td>
+                        <td valign="top">
+                          <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">Upload your first CSV</div>
+                          <div style="font-size:13px;color:#6b7280;line-height:1.5;">Drag any time-series CSV (up to 10 MB) into the workspace. Date and value columns are detected automatically.</div>
+                        </td>
+                      </tr></table>
+                    </td>
+                  </tr>
+                  <tr><td style="height:8px;line-height:8px;font-size:0;">&nbsp;</td></tr>
+                  <tr>
+                    <td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;">
+                      <table role="presentation" width="100%"><tr>
+                        <td valign="top" width="34" style="padding-right:12px;">
+                          <div style="width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;color:#fff;text-align:center;line-height:30px;font-weight:700;font-size:14px;">2</div>
+                        </td>
+                        <td valign="top">
+                          <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">Train and forecast</div>
+                          <div style="font-size:13px;color:#6b7280;line-height:1.5;">Training is automatic on upload. Click Generate Forecast to predict the next N steps at your data's natural cadence.</div>
+                        </td>
+                      </tr></table>
+                    </td>
+                  </tr>
+                  <tr><td style="height:8px;line-height:8px;font-size:0;">&nbsp;</td></tr>
+                  <tr>
+                    <td style="padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;">
+                      <table role="presentation" width="100%"><tr>
+                        <td valign="top" width="34" style="padding-right:12px;">
+                          <div style="width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;color:#fff;text-align:center;line-height:30px;font-weight:700;font-size:14px;">3</div>
+                        </td>
+                        <td valign="top">
+                          <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">Ask the AI assistant</div>
+                          <div style="font-size:13px;color:#6b7280;line-height:1.5;">Stuck on terminology or want a recommendation? Click the chat bubble in the bottom-right — it's a forecasting-savvy LLM.</div>
+                        </td>
+                      </tr></table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- CTA -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:8px auto 28px;">
+                  <tr>
+                    <td align="center" style="border-radius:10px;background:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);">
+                      <a href="{{workspace_url}}" target="_blank"
+                         style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">
+                        Open my workspace →
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 4px;text-align:center;font-size:13px;color:#6b7280;">
+                  Need help getting started? Check the
+                  <a href="{{docs_url}}/getting-started" style="color:#3b82f6;text-decoration:none;">5-minute guide</a>
+                  or
+                  <a href="{{site_url}}/contact" style="color:#3b82f6;text-decoration:none;">contact our team</a>.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="background:#f9fafb;padding:24px 32px;border-top:1px solid #e5e7eb;text-align:center;">
+                <p style="margin:0 0 8px;font-size:12px;color:#6b7280;">
+                  You're receiving this because you just signed up at rinkglobal.com.
+                </p>
+                <p style="margin:0;font-size:12px;color:#9ca3af;">© RINK Global Services</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
