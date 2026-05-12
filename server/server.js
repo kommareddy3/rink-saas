@@ -20,6 +20,7 @@ const FormData = require("form-data");
 const Groq = require("groq-sdk");
 const { createClient } = require("@supabase/supabase-js");
 const dotenv = require("dotenv");
+const passkeyRouter = require("./passkeys");
 
 dotenv.config({ path: path.resolve(__dirname, ".env") });
 
@@ -373,6 +374,9 @@ app.post("/api/welcome-email", requireAuth, async (req, res) => {
     res.status(502).json({ error: "Failed to reach email provider." });
   }
 });
+
+// Passkey (WebAuthn) endpoints — see server/passkeys.js
+app.use("/api/passkeys", passkeyRouter(requireAuth));
 
 // Permanently delete the caller's uploaded CSV and trained model on the ML
 // service. Called by the client on logout (manual or idle) so files don't

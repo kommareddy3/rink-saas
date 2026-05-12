@@ -43,15 +43,21 @@ Plus:
 
 ### Vercel → `rink-api`
 
-| Variable                | Value                                                      |
-| ----------------------- | ---------------------------------------------------------- |
-| `ML_API_URL`            | `https://rink-ml.onrender.com`                             |
-| `GROQ_API_KEY`          | a fresh key from console.groq.com                           |
-| `GROQ_MODEL`            | `llama-3.3-70b-versatile` (default)                         |
-| `SUPABASE_URL`          | `https://YOUR-REF.supabase.co`                             |
-| `SUPABASE_ANON_KEY`     | the anon key from Supabase dashboard                       |
-| `ALLOWED_ORIGINS`       | `https://rinkglobal.com,https://www.rinkglobal.com`        |
-| `GATEWAY_SECRET`        | the **same** value as on Render                            |
+| Variable                       | Value                                                      |
+| ------------------------------ | ---------------------------------------------------------- |
+| `ML_API_URL`                   | `https://rink-ml.onrender.com`                             |
+| `GROQ_API_KEY`                 | a fresh key from console.groq.com                           |
+| `GROQ_MODEL`                   | `llama-3.3-70b-versatile` (default)                         |
+| `SUPABASE_URL`                 | `https://YOUR-REF.supabase.co`                             |
+| `SUPABASE_ANON_KEY`            | the anon key from Supabase dashboard                       |
+| `SUPABASE_SERVICE_ROLE_KEY`    | service-role key — required for passkeys + welcome emails  |
+| `ALLOWED_ORIGINS`              | `https://rinkglobal.com,https://www.rinkglobal.com`        |
+| `GATEWAY_SECRET`               | the **same** value as on Render                            |
+| `RESEND_API_KEY`               | (optional) Resend API key for welcome emails               |
+| `WELCOME_FROM_EMAIL`           | (optional) e.g. `RINK <hello@mail.rinkglobal.com>`         |
+| `PASSKEY_RP_NAME`              | `RINK Global Services`                                     |
+| `PASSKEY_RP_ID`                | `rinkglobal.com` (apex domain, no protocol)                |
+| `PASSKEY_RP_ORIGIN`            | `https://rinkglobal.com`                                   |
 
 ### Vercel → `rink-web`
 

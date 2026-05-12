@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import axios from "axios";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { useAuth } from "../contexts/AuthContext";
+import SocialLoginButtons from "../components/SocialLoginButtons";
+import API_BASE_URL from "../config";
 import logo from "../assets/rink-logo.png";
 
 // ---------------------------------------------------------------------------
@@ -250,6 +254,8 @@ export default function Auth() {
     resetPasswordForEmail,
     updatePassword,
     resendConfirmation,
+    signInWithProvider,
+    completePasskeySignIn,
   } = useAuth();
 
   // ---------- Mode / URL routing ----------
@@ -305,6 +311,8 @@ export default function Auth() {
   const [serverError, setServerError] = useState("");
   const [serverSuccess, setServerSuccess] = useState("");
   const [pendingEmail, setPendingEmail] = useState(""); // for resend confirmation
+  const [oauthBusy, setOauthBusy] = useState(null);     // provider id while redirecting
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
 
   const emailRef = useRef(null);
   useEffect(() => {
@@ -457,6 +465,63 @@ export default function Auth() {
     }
   };
 
+  const handleProvider = async (provider) => {
+    setOauthBusy(provider);
+    setServerError("");
+    try {
+      const { error } = await signInWithProvider(provider);
+      if (error) setServerError(error.message || `${provider} sign-in failed.`);
+      // Successful path navigates away; component unmounts.
+    } catch (err) {
+      setServerError(err?.message || `${provider} sign-in failed.`);
+    } finally {
+      // Browsers redirect, but if the call returns inline we restore state.
+      setOauthBusy(null);
+    }
+  };
+
+  const handlePasskey = async () => {
+    setPasskeyBusy(true);
+    setServerError("");
+    try {
+      // 1. Ask the server for a challenge. We pass the email if the user
+      //    typed it in the login form — that lets the server build a tighter
+      //    allowCredentials list. Otherwise the browser shows all discoverable
+      //    credentials for this site.
+      const beginRes = await axios.post(
+        `${API_BASE_URL}/api/passkeys/authenticate/begin`,
+        { email: form.email?.trim() || undefined }
+      );
+      const { options, sessionToken } = beginRes.data;
+
+      // 2. Hand off to the browser's WebAuthn UI.
+      const assertion = await startAuthentication({ optionsJSON: options });
+
+      // 3. Send the assertion back. The server verifies it and returns
+      //    a Supabase OTP token.
+      const finishRes = await axios.post(
+        `${API_BASE_URL}/api/passkeys/authenticate/finish`,
+        { sessionToken, response: assertion }
+      );
+      const { token_hash, type } = finishRes.data;
+
+      // 4. Exchange the OTP for a real Supabase session.
+      const { error } = await completePasskeySignIn({ token_hash, type });
+      if (error) throw error;
+      const next = searchParams.get("next") || DEFAULT_NEXT;
+      navigate(next, { replace: true });
+    } catch (err) {
+      const data = err?.response?.data;
+      setServerError(
+        data?.error ||
+          err?.message ||
+          "Passkey sign-in failed. Try email + password, or register a passkey first."
+      );
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
   const handleResend = async () => {
     if (!pendingEmail) return;
     setSubmitting(true);
@@ -511,6 +576,45 @@ export default function Auth() {
           {serverSuccess && (
             <div className="mb-4">
               <ServerAlert kind="success">{serverSuccess}</ServerAlert>
+            </div>
+          )}
+
+          {/* SSO + passkey shortcuts (only on login & register modes) */}
+          {(mode === MODES.LOGIN || mode === MODES.REGISTER) && (
+            <div className="space-y-3 mb-5">
+              <SocialLoginButtons
+                onProvider={handleProvider}
+                disabled={submitting || passkeyBusy}
+                busyId={oauthBusy}
+              />
+              {mode === MODES.LOGIN && (
+                <button
+                  type="button"
+                  onClick={handlePasskey}
+                  disabled={submitting || passkeyBusy || oauthBusy}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-white bg-white/5 hover:bg-white/10 border border-white/10 transition disabled:opacity-50"
+                >
+                  {passkeyBusy ? (
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" />
+                      <path fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-blue-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v6m-3 3h6l3-3v-4l-3-3" />
+                    </svg>
+                  )}
+                  {passkeyBusy ? "Verifying…" : "Sign in with passkey"}
+                </button>
+              )}
+              <div className="flex items-center gap-3 my-1">
+                <span className="flex-1 h-px bg-white/10" />
+                <span className="text-[11px] uppercase tracking-widest text-gray-500">
+                  or with email
+                </span>
+                <span className="flex-1 h-px bg-white/10" />
+              </div>
             </div>
           )}
 

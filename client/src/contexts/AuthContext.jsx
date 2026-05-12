@@ -335,6 +335,36 @@ export function AuthProvider({ children }) {
     return { data, error };
   };
 
+  // ----------------------------- SSO / OAuth ----------------------------
+  // Triggers the Supabase OAuth flow for the chosen provider. Supabase
+  // handles the entire redirect dance; on return our PASSWORD_RECOVERY /
+  // SIGNED_IN listeners pick up the new session.
+  const signInWithProvider = async (provider) => {
+    const redirectTo =
+      typeof window !== "undefined" ? `${window.location.origin}/auth` : undefined;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo },
+    });
+    return { data, error };
+  };
+
+  // ----------------------------- Passkey OTP exchange -------------------
+  // After the server verifies a WebAuthn assertion it returns a hashed OTP
+  // token. We complete sign-in by calling verifyOtp with that token.
+  const completePasskeySignIn = async ({ token_hash, type = "magiclink" }) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type,
+    });
+    if (data?.session) {
+      setSession(data.session);
+      setUser(data.user);
+      writeLastActivity(Date.now());
+    }
+    return { data, error };
+  };
+
   const displayName =
     user?.user_metadata?.display_name ||
     [user?.user_metadata?.first_name, user?.user_metadata?.last_name].filter(Boolean).join(" ") ||
@@ -357,6 +387,8 @@ export function AuthProvider({ children }) {
       updateProfile,
       updateEmail,
       resendConfirmation,
+      signInWithProvider,
+      completePasskeySignIn,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, session, loading, recoveryActive, displayName, signOut]

@@ -196,6 +196,80 @@ automatically on sign-out (manual or idle).
 
 ---
 
+---
+
+## `POST /api/passkeys/register/begin` 🔒
+
+Generates a WebAuthn registration challenge for the authenticated user.
+Returns `{ options, sessionToken }`. Pass `options` to
+`@simplewebauthn/browser`'s `startRegistration()`; pass `sessionToken`
+back on the finish call.
+
+## `POST /api/passkeys/register/finish` 🔒
+
+Verifies the WebAuthn attestation and stores the credential.
+
+**Request**
+
+```json
+{ "sessionToken": "…", "response": <attestation>, "friendlyName": "MacBook Touch ID" }
+```
+
+**Response**
+
+```json
+{ "status": "registered" }
+```
+
+## `POST /api/passkeys/authenticate/begin`
+
+Generates a sign-in challenge. **No auth required.** If `email` is
+included in the body, server tailors the allow-list to that user's
+credentials; otherwise returns discoverable-credential options.
+
+**Request**
+
+```json
+{ "email": "you@example.com" }   // optional
+```
+
+**Response**
+
+```json
+{ "options": { … WebAuthn opts … }, "sessionToken": "…" }
+```
+
+## `POST /api/passkeys/authenticate/finish`
+
+Verifies the assertion. On success, mints a one-time Supabase OTP token
+the client can exchange for a session via
+`supabase.auth.verifyOtp({ token_hash, type: 'magiclink' })`.
+
+**Response**
+
+```json
+{ "email": "you@example.com", "token_hash": "…", "type": "magiclink" }
+```
+
+## `GET /api/passkeys` 🔒
+
+Lists the calling user's registered passkeys.
+
+```json
+{ "passkeys": [
+  { "id": "uuid", "friendly_name": "MacBook Touch ID",
+    "created_at": "…", "last_used_at": "…",
+    "device_type": "multiDevice", "backed_up": true,
+    "transports": ["internal"] }
+] }
+```
+
+## `DELETE /api/passkeys/:id` 🔒
+
+Removes one passkey. Returns `404` if it's not yours or doesn't exist.
+
+---
+
 ## Notation
 
 - 🔒 — requires `Authorization: Bearer <supabase_access_token>` header.
