@@ -4,7 +4,7 @@ import {
   SectionHeader, ToastList, prettyError, useToasts,
 } from "../components/ToolUI";
 import {
-  Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer,
+  Bar, BarChart, CartesianGrid, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import api from "../api";
