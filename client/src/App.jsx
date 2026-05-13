@@ -6,6 +6,12 @@ import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Analytics from "./pages/Analytics";
+import AnomalyDetection from "./pages/AnomalyDetection";
+import ChurnPrediction from "./pages/ChurnPrediction";
+import CustomerSegmentation from "./pages/CustomerSegmentation";
+import ABTest from "./pages/ABTest";
+import TSP from "./pages/TSP";
+import VRP from "./pages/VRP";
 import Contact from "./pages/Contact";
 import Profile from "./pages/Profile";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -26,6 +32,54 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <Analytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tools/anomaly"
+                element={
+                  <ProtectedRoute>
+                    <AnomalyDetection />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tools/churn"
+                element={
+                  <ProtectedRoute>
+                    <ChurnPrediction />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tools/segmentation"
+                element={
+                  <ProtectedRoute>
+                    <CustomerSegmentation />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tools/abtest"
+                element={
+                  <ProtectedRoute>
+                    <ABTest />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tools/tsp"
+                element={
+                  <ProtectedRoute>
+                    <TSP />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tools/vrp"
+                element={
+                  <ProtectedRoute>
+                    <VRP />
                   </ProtectedRoute>
                 }
               />

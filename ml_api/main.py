@@ -35,11 +35,26 @@ from typing import List, Optional, Tuple
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from scipy import stats as scipy_stats
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.ensemble import (
+    GradientBoostingRegressor,
+    IsolationForest,
+    RandomForestClassifier,
+)
+from sklearn.metrics import (
+    accuracy_score,
+    mean_absolute_error,
+    mean_squared_error,
+    roc_auc_score,
+    silhouette_score,
+)
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -513,3 +528,982 @@ def delete_user_data(request: Request) -> dict:
         removed = True
     log.info("[user=%s] data deleted=%s", paths.user_id, removed)
     return {"status": "deleted", "removed": removed}
+
+
+# ===========================================================================
+# Anomaly Detection
+# ===========================================================================
+
+class AnomalyResponse(BaseModel):
+    column: str
+    date_column: Optional[str] = None
+    frequency: str = "unknown"
+    contamination: float
+    rows: int
+    anomalies: int
+    anomaly_rate: float
+    threshold: float
+    points: List[dict]
+
+
+def _read_uploaded_csv(file_bytes: bytes) -> pd.DataFrame:
+    try:
+        df = pd.read_csv(io.BytesIO(file_bytes))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid CSV: {exc}")
+    if df.empty:
+        raise HTTPException(status_code=400, detail="CSV is empty.")
+    return df
+
+
+def _validate_upload(file: UploadFile, contents: bytes) -> None:
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are accepted.")
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB).")
+
+
+@app.post("/anomaly/detect", response_model=AnomalyResponse)
+async def anomaly_detect(
+    request: Request,
+    file: UploadFile = File(...),
+    column: Optional[str] = Form(None),
+    contamination: float = Form(0.05),
+) -> AnomalyResponse:
+    """Run IsolationForest on the value column and flag anomalous rows."""
+    _get_paths(request)  # auth / header validation
+    if not (0.001 <= contamination <= 0.5):
+        raise HTTPException(status_code=400, detail="contamination must be between 0.001 and 0.5")
+
+    contents = await file.read()
+    _validate_upload(file, contents)
+    df = _read_uploaded_csv(contents)
+
+    # Date detection + chronological sort (reuse forecasting helpers)
+    date_col = _detect_date_column(df)
+    frequency = "unknown"
+    if date_col is not None:
+        df = df.copy()
+        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+        df = df.dropna(subset=[date_col]).sort_values(date_col).reset_index(drop=True)
+        frequency, _ = _infer_frequency(df[date_col])
+
+    excluded = [date_col] if date_col else None
+    target = column if column and column in df.columns else _detect_value_column(df, exclude=excluded)
+    series = pd.to_numeric(df[target], errors="coerce")
+    mask = series.notna()
+    series = series[mask]
+    if len(series) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Need at least 20 numeric rows to detect anomalies (got {len(series)}).",
+        )
+
+    # Use lag-augmented features so anomalies are detected relative to local
+    # context rather than the global mean. Falls back to plain values when
+    # the series is short.
+    feats = pd.DataFrame({"y": series.values})
+    feats["lag1"] = feats["y"].shift(1)
+    feats["lag2"] = feats["y"].shift(2)
+    feats["rmean5"] = feats["y"].shift(1).rolling(5).mean()
+    feats["rstd5"] = feats["y"].shift(1).rolling(5).std().fillna(0.0)
+    feats = feats.fillna(method="bfill").fillna(0.0)
+
+    model = IsolationForest(
+        contamination=contamination, random_state=42, n_estimators=200
+    )
+    model.fit(feats.values)
+    scores = -model.score_samples(feats.values)  # higher = more anomalous
+    predictions = model.predict(feats.values)    # 1 normal, -1 anomalous
+    is_anomaly = predictions == -1
+    threshold = float(np.quantile(scores, 1 - contamination))
+
+    if date_col is not None:
+        dates_iso = df.loc[mask, date_col].dt.strftime("%Y-%m-%d").tolist()
+    else:
+        dates_iso = [None] * len(series)
+
+    points = []
+    for i in range(len(series)):
+        points.append({
+            "index": int(i),
+            "date": dates_iso[i],
+            "value": float(series.iloc[i]),
+            "score": float(scores[i]),
+            "is_anomaly": bool(is_anomaly[i]),
+        })
+
+    anomalies = int(is_anomaly.sum())
+    return AnomalyResponse(
+        column=target,
+        date_column=date_col,
+        frequency=frequency,
+        contamination=contamination,
+        rows=len(series),
+        anomalies=anomalies,
+        anomaly_rate=anomalies / max(1, len(series)),
+        threshold=threshold,
+        points=points,
+    )
+
+
+# ===========================================================================
+# Churn Prediction
+# ===========================================================================
+
+class ChurnPredictionItem(BaseModel):
+    index: int
+    probability: float
+    risk: str  # "low" | "medium" | "high"
+
+
+class ChurnResponse(BaseModel):
+    label_column: str
+    feature_columns: List[str]
+    rows: int
+    train_size: int
+    test_size: int
+    accuracy: float
+    auc: Optional[float] = None
+    base_rate: float
+    feature_importance: List[dict]
+    risk_distribution: dict
+    confusion: dict
+    top_at_risk: List[dict]
+
+
+def _detect_label_column(df: pd.DataFrame) -> Optional[str]:
+    candidates = ["churn", "Churn", "CHURN", "label", "target", "churned", "is_churn"]
+    for col in candidates:
+        if col in df.columns:
+            return col
+    # Fall back to any boolean / 0-1 column
+    for col in df.columns:
+        try:
+            unique = pd.to_numeric(df[col], errors="coerce").dropna().unique()
+            if set(map(int, unique)).issubset({0, 1}) and len(unique) > 1:
+                return col
+        except Exception:
+            continue
+    return None
+
+
+@app.post("/churn/predict", response_model=ChurnResponse)
+async def churn_predict(
+    request: Request,
+    file: UploadFile = File(...),
+    label: Optional[str] = Form(None),
+) -> ChurnResponse:
+    """Train a RandomForestClassifier on the uploaded customer table.
+    The label column must contain 0/1 (or yes/no). All other numeric columns
+    are used as features. String columns are one-hot encoded if low-cardinality."""
+    _get_paths(request)
+    contents = await file.read()
+    _validate_upload(file, contents)
+    df = _read_uploaded_csv(contents)
+
+    label_col = label if label and label in df.columns else _detect_label_column(df)
+    if not label_col:
+        raise HTTPException(
+            status_code=400,
+            detail="Couldn't detect a churn / label column. Add a column called 'churn' with 0/1 values.",
+        )
+
+    y_raw = df[label_col]
+    if y_raw.dtype == "object":
+        truthy = {"yes", "y", "true", "1", "churned", "lost"}
+        y = y_raw.astype(str).str.strip().str.lower().isin(truthy).astype(int)
+    else:
+        y = pd.to_numeric(y_raw, errors="coerce").fillna(0).astype(int)
+        y = (y > 0).astype(int)
+
+    base_rate = float(y.mean())
+    if y.sum() < 5 or (len(y) - y.sum()) < 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Need at least 5 examples of each class (churned and retained).",
+        )
+
+    feat_df = df.drop(columns=[label_col])
+    # Keep numeric columns as-is; one-hot encode object columns with ≤20 unique values.
+    pieces = []
+    feature_names = []
+    for col in feat_df.columns:
+        s = feat_df[col]
+        if pd.api.types.is_numeric_dtype(s):
+            pieces.append(s.astype(float).fillna(s.astype(float).median()))
+            feature_names.append(col)
+        elif s.dtype == "object":
+            nunique = s.nunique(dropna=True)
+            if 1 < nunique <= 20:
+                dummies = pd.get_dummies(s, prefix=col, dummy_na=False).astype(float)
+                pieces.extend([dummies[c] for c in dummies.columns])
+                feature_names.extend(list(dummies.columns))
+            # Skip high-cardinality strings (IDs, names, etc.)
+
+    if not pieces:
+        raise HTTPException(
+            status_code=400,
+            detail="No usable feature columns. Add numeric or low-cardinality categorical columns.",
+        )
+
+    X = pd.concat(pieces, axis=1).fillna(0.0)
+    if len(X) < 30:
+        raise HTTPException(status_code=400, detail="Need at least 30 rows.")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X.values, y.values, test_size=0.2, random_state=42, stratify=y.values
+    )
+
+    clf = RandomForestClassifier(
+        n_estimators=300, max_depth=8, random_state=42, n_jobs=-1
+    )
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    y_prob = clf.predict_proba(X_test)[:, 1]
+
+    accuracy = float(accuracy_score(y_test, y_pred))
+    try:
+        auc = float(roc_auc_score(y_test, y_prob))
+    except Exception:
+        auc = None
+
+    # Importance for top 15 features
+    imp = sorted(
+        zip(feature_names, clf.feature_importances_),
+        key=lambda t: t[1],
+        reverse=True,
+    )[:15]
+    importance_out = [{"feature": k, "importance": float(v)} for k, v in imp]
+
+    # Score the entire dataset for the at-risk list
+    full_probs = clf.predict_proba(X.values)[:, 1]
+    risk = pd.Series(
+        np.where(full_probs >= 0.7, "high", np.where(full_probs >= 0.4, "medium", "low"))
+    )
+    distribution = {
+        "high": int((risk == "high").sum()),
+        "medium": int((risk == "medium").sum()),
+        "low": int((risk == "low").sum()),
+    }
+
+    # Confusion matrix on the held-out test set
+    tn = int(((y_pred == 0) & (y_test == 0)).sum())
+    fp = int(((y_pred == 1) & (y_test == 0)).sum())
+    fn = int(((y_pred == 0) & (y_test == 1)).sum())
+    tp = int(((y_pred == 1) & (y_test == 1)).sum())
+
+    # Top 10 highest-risk rows from the full dataset, with their original row values
+    order = np.argsort(-full_probs)[:10]
+    top_at_risk = []
+    for i in order:
+        row = df.iloc[int(i)]
+        # only echo non-label columns, and stringify everything for safe JSON
+        echo = {k: (str(row[k]) if pd.notna(row[k]) else None) for k in df.columns if k != label_col}
+        top_at_risk.append({
+            "index": int(i),
+            "probability": float(full_probs[i]),
+            "row": echo,
+        })
+
+    return ChurnResponse(
+        label_column=label_col,
+        feature_columns=feature_names,
+        rows=len(df),
+        train_size=len(X_train),
+        test_size=len(X_test),
+        accuracy=accuracy,
+        auc=auc,
+        base_rate=base_rate,
+        feature_importance=importance_out,
+        risk_distribution=distribution,
+        confusion={"tn": tn, "fp": fp, "fn": fn, "tp": tp},
+        top_at_risk=top_at_risk,
+    )
+
+
+# ===========================================================================
+# TSP (Travelling Salesman Problem)
+# ===========================================================================
+
+class Point(BaseModel):
+    name: Optional[str] = None
+    x: float
+    y: float
+
+
+class TSPRequest(BaseModel):
+    points: List[Point] = Field(..., min_length=2, max_length=200)
+    return_to_start: bool = True
+
+
+class TSPResponse(BaseModel):
+    route: List[int]
+    names: List[str]
+    coordinates: List[List[float]]
+    total_distance: float
+    legs: List[dict]
+    improved_from: float
+    iterations: int
+
+
+def _distance_matrix(points: List[Point]) -> np.ndarray:
+    coords = np.array([[p.x, p.y] for p in points])
+    diff = coords[:, None, :] - coords[None, :, :]
+    return np.sqrt((diff ** 2).sum(axis=-1))
+
+
+def _nearest_neighbor(dist: np.ndarray) -> List[int]:
+    n = len(dist)
+    visited = [False] * n
+    route = [0]
+    visited[0] = True
+    for _ in range(n - 1):
+        last = route[-1]
+        next_idx = -1
+        next_d = float("inf")
+        for j in range(n):
+            if not visited[j] and dist[last, j] < next_d:
+                next_d = dist[last, j]
+                next_idx = j
+        route.append(next_idx)
+        visited[next_idx] = True
+    return route
+
+
+def _route_length(route: List[int], dist: np.ndarray, closed: bool) -> float:
+    total = 0.0
+    for i in range(len(route) - 1):
+        total += dist[route[i], route[i + 1]]
+    if closed:
+        total += dist[route[-1], route[0]]
+    return float(total)
+
+
+def _two_opt(route: List[int], dist: np.ndarray, closed: bool, max_iter: int = 500) -> Tuple[List[int], int]:
+    """Standard 2-opt local search."""
+    best = list(route)
+    best_len = _route_length(best, dist, closed)
+    n = len(best)
+    iter_count = 0
+    improved = True
+    while improved and iter_count < max_iter:
+        improved = False
+        iter_count += 1
+        for i in range(1, n - 1):
+            for j in range(i + 1, n):
+                if j - i == 1:
+                    continue
+                candidate = best[:i] + best[i:j][::-1] + best[j:]
+                cand_len = _route_length(candidate, dist, closed)
+                if cand_len < best_len - 1e-9:
+                    best = candidate
+                    best_len = cand_len
+                    improved = True
+        if not improved:
+            break
+    return best, iter_count
+
+
+@app.post("/tsp/solve", response_model=TSPResponse)
+def tsp_solve(request: Request, body: TSPRequest) -> TSPResponse:
+    """Solve the Travelling Salesman Problem with nearest-neighbor + 2-opt."""
+    _get_paths(request)
+    points = body.points
+    closed = body.return_to_start
+    dist = _distance_matrix(points)
+
+    initial = _nearest_neighbor(dist)
+    initial_len = _route_length(initial, dist, closed)
+    optimized, iters = _two_opt(initial, dist, closed)
+    optimized_len = _route_length(optimized, dist, closed)
+
+    sequence = optimized + ([optimized[0]] if closed else [])
+    names = [points[i].name or f"#{i}" for i in sequence]
+    coordinates = [[points[i].x, points[i].y] for i in sequence]
+
+    legs = []
+    for k in range(len(sequence) - 1):
+        a, b = sequence[k], sequence[k + 1]
+        legs.append({
+            "from": points[a].name or f"#{a}",
+            "to": points[b].name or f"#{b}",
+            "distance": float(dist[a, b]),
+        })
+
+    return TSPResponse(
+        route=sequence,
+        names=names,
+        coordinates=coordinates,
+        total_distance=float(optimized_len),
+        legs=legs,
+        improved_from=float(initial_len),
+        iterations=iters,
+    )
+
+
+# ===========================================================================
+# VRP (Vehicle Routing Problem) — capacitated
+# ===========================================================================
+
+class VRPPoint(BaseModel):
+    name: Optional[str] = None
+    x: float
+    y: float
+    demand: float = 1.0
+
+
+class VRPRequest(BaseModel):
+    depot: Point
+    customers: List[VRPPoint] = Field(..., min_length=1, max_length=200)
+    num_vehicles: int = Field(3, ge=1, le=50)
+    vehicle_capacity: float = Field(..., gt=0)
+
+
+class VRPRoute(BaseModel):
+    vehicle: int
+    sequence: List[int]
+    names: List[str]
+    coordinates: List[List[float]]
+    distance: float
+    load: float
+
+
+class VRPResponse(BaseModel):
+    routes: List[VRPRoute]
+    total_distance: float
+    total_load: float
+    unserved: List[int]
+    vehicle_capacity: float
+    method: str
+
+
+def _vrp_savings(depot: Point, customers: List[VRPPoint], num_vehicles: int, capacity: float):
+    """Clarke-Wright savings heuristic, then capacity-aware route assembly."""
+    all_points = [depot] + [Point(name=c.name, x=c.x, y=c.y) for c in customers]
+    dist = _distance_matrix(all_points)
+    n = len(customers)
+    demands = [c.demand for c in customers]
+    if any(d > capacity for d in demands):
+        # any single customer demand exceeds vehicle capacity → infeasible
+        raise HTTPException(
+            status_code=400,
+            detail="At least one customer demand exceeds vehicle capacity.",
+        )
+
+    # Initial: each customer is its own route from the depot.
+    routes = [[i + 1] for i in range(n)]  # indices into all_points
+
+    # Compute savings s(i,j) = d(0,i) + d(0,j) - d(i,j)
+    savings = []
+    for i in range(1, n + 1):
+        for j in range(i + 1, n + 1):
+            s = dist[0, i] + dist[0, j] - dist[i, j]
+            savings.append((s, i, j))
+    savings.sort(reverse=True)
+
+    # Track which route each customer is in and its load.
+    route_of = {i + 1: i for i in range(n)}
+    loads = list(demands)  # parallel to routes
+
+    def can_merge(ri, rj, i, j):
+        if ri == rj:
+            return False
+        if loads[ri] + loads[rj] > capacity:
+            return False
+        # Only merge if i and j are at the ends of their routes.
+        return (routes[ri][-1] == i and routes[rj][0] == j) or (
+            routes[rj][-1] == i and routes[ri][0] == j
+        ) or (routes[ri][-1] == j and routes[rj][0] == i) or (
+            routes[rj][-1] == j and routes[ri][0] == i
+        )
+
+    for s, i, j in savings:
+        if s <= 0:
+            break
+        ri = route_of[i]
+        rj = route_of[j]
+        if not can_merge(ri, rj, i, j):
+            continue
+        # Orient and concatenate.
+        if routes[ri][-1] == i and routes[rj][0] == j:
+            merged = routes[ri] + routes[rj]
+        elif routes[ri][-1] == j and routes[rj][0] == i:
+            merged = routes[ri] + routes[rj]
+        elif routes[rj][-1] == i and routes[ri][0] == j:
+            merged = routes[rj] + routes[ri]
+        elif routes[rj][-1] == j and routes[ri][0] == i:
+            merged = routes[rj] + routes[ri]
+        else:
+            continue
+        merged_load = loads[ri] + loads[rj]
+        routes[ri] = merged
+        loads[ri] = merged_load
+        for k in merged:
+            route_of[k] = ri
+        routes[rj] = []
+        loads[rj] = 0
+
+    active = [(routes[k], loads[k]) for k in range(n) if routes[k]]
+    # Sort by load desc; truncate to num_vehicles; leftover customers are unserved.
+    active.sort(key=lambda t: -t[1])
+    chosen = active[:num_vehicles]
+    leftover_routes = active[num_vehicles:]
+    unserved = []
+    for rt, _load in leftover_routes:
+        unserved.extend(rt)
+    # Translate back from all_points index (1..n) to customers index (0..n-1).
+    chosen_customers = [
+        ([k - 1 for k in rt], load) for rt, load in chosen
+    ]
+    unserved_customers = [k - 1 for k in unserved]
+    return chosen_customers, unserved_customers, dist
+
+
+# ===========================================================================
+# Customer Segmentation (K-means)
+# ===========================================================================
+
+class SegmentationCluster(BaseModel):
+    id: int
+    size: int
+    pct: float
+    centroid: dict
+    label: str
+
+
+class SegmentationPoint(BaseModel):
+    index: int
+    cluster: int
+    x: float
+    y: float
+
+
+class SegmentationResponse(BaseModel):
+    n_clusters: int
+    rows: int
+    features_used: List[str]
+    silhouette: Optional[float] = None
+    inertia: float
+    auto_k: bool
+    clusters: List[SegmentationCluster]
+    points: List[SegmentationPoint]
+
+
+def _label_cluster(centroid_norm: np.ndarray, feature_names: List[str]) -> str:
+    """Produce a short, human-readable label by picking the feature each
+    cluster scores highest on relative to the others."""
+    if len(centroid_norm) == 0:
+        return "—"
+    idx = int(np.argmax(centroid_norm))
+    return f"High {feature_names[idx]}"
+
+
+@app.post("/segmentation/run", response_model=SegmentationResponse)
+async def segmentation_run(
+    request: Request,
+    file: UploadFile = File(...),
+    k: Optional[int] = Form(None),
+    features: Optional[str] = Form(None),  # comma-separated column names
+) -> SegmentationResponse:
+    """Run K-means on the uploaded customer table. If ``k`` is omitted,
+    pick the value in [2..8] with the best silhouette score."""
+    _get_paths(request)
+    contents = await file.read()
+    _validate_upload(file, contents)
+    df = _read_uploaded_csv(contents)
+
+    # Build the feature matrix.
+    if features:
+        wanted = [c.strip() for c in features.split(",") if c.strip()]
+        missing = [c for c in wanted if c not in df.columns]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown column(s): {', '.join(missing)}",
+            )
+        feature_cols = [
+            c for c in wanted if pd.api.types.is_numeric_dtype(df[c])
+        ]
+        if not feature_cols:
+            raise HTTPException(
+                status_code=400,
+                detail="None of the requested columns are numeric.",
+            )
+    else:
+        feature_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+        # Drop columns that look like row identifiers
+        feature_cols = [
+            c for c in feature_cols
+            if not c.lower().endswith("_id") and c.lower() not in {"id", "index"}
+        ]
+        if len(feature_cols) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Need at least 2 numeric feature columns. Add some, or pass the `features` field.",
+            )
+
+    X_raw = df[feature_cols].copy()
+    # Fill missing with median per-column.
+    for c in X_raw.columns:
+        X_raw[c] = X_raw[c].fillna(X_raw[c].median())
+    n = len(X_raw)
+    if n < 20:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Need at least 20 rows (got {n}).",
+        )
+
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X_raw.values)
+
+    # Choose k automatically by silhouette if not provided.
+    if k is not None:
+        if not 2 <= k <= 12:
+            raise HTTPException(status_code=400, detail="k must be between 2 and 12.")
+        chosen_k = k
+        auto_k = False
+    else:
+        best_score = -1.0
+        best_k = 3
+        for candidate in range(2, min(9, n // 5)):
+            kmodel = KMeans(n_clusters=candidate, n_init=10, random_state=42)
+            labels = kmodel.fit_predict(X)
+            if len(set(labels)) < 2:
+                continue
+            try:
+                score = silhouette_score(X, labels, sample_size=min(2000, n), random_state=42)
+            except Exception:
+                continue
+            if score > best_score:
+                best_score = score
+                best_k = candidate
+        chosen_k = best_k
+        auto_k = True
+
+    final_model = KMeans(n_clusters=chosen_k, n_init=10, random_state=42)
+    labels = final_model.fit_predict(X)
+    inertia = float(final_model.inertia_)
+    try:
+        sil = float(silhouette_score(X, labels, sample_size=min(2000, n), random_state=42))
+    except Exception:
+        sil = None
+
+    # 2D projection so the frontend can plot it.
+    pca = PCA(n_components=2)
+    coords = pca.fit_transform(X)
+
+    # Per-cluster summaries — centroid in ORIGINAL feature units.
+    centroids_norm = final_model.cluster_centers_
+    centroids_orig = scaler.inverse_transform(centroids_norm)
+
+    clusters: List[SegmentationCluster] = []
+    for cid in range(chosen_k):
+        size = int((labels == cid).sum())
+        centroid_dict = {
+            feature_cols[i]: float(centroids_orig[cid, i])
+            for i in range(len(feature_cols))
+        }
+        clusters.append(SegmentationCluster(
+            id=cid,
+            size=size,
+            pct=size / max(1, n),
+            centroid=centroid_dict,
+            label=_label_cluster(centroids_norm[cid], feature_cols),
+        ))
+
+    points = [
+        SegmentationPoint(
+            index=int(i),
+            cluster=int(labels[i]),
+            x=float(coords[i, 0]),
+            y=float(coords[i, 1]),
+        )
+        for i in range(n)
+    ]
+
+    return SegmentationResponse(
+        n_clusters=chosen_k,
+        rows=n,
+        features_used=feature_cols,
+        silhouette=sil,
+        inertia=inertia,
+        auto_k=auto_k,
+        clusters=clusters,
+        points=points,
+    )
+
+
+# ===========================================================================
+# A/B Test Analyzer
+# ===========================================================================
+
+class ContinuousArm(BaseModel):
+    name: str = "Group"
+    values: List[float] = Field(..., min_length=2)
+
+
+class ContinuousABRequest(BaseModel):
+    control: ContinuousArm
+    variant: ContinuousArm
+    alpha: float = Field(0.05, gt=0, lt=0.5)
+
+
+class ConversionArm(BaseModel):
+    name: str = "Group"
+    visitors: int = Field(..., gt=0)
+    conversions: int = Field(..., ge=0)
+
+
+class ConversionABRequest(BaseModel):
+    control: ConversionArm
+    variant: ConversionArm
+    alpha: float = Field(0.05, gt=0, lt=0.5)
+
+
+class ABArmSummary(BaseModel):
+    name: str
+    n: int
+    metric: float            # mean (continuous) or rate (conversion)
+    std_or_se: float
+    ci_low: float
+    ci_high: float
+
+
+class ABResponse(BaseModel):
+    test: str                # "welch-t", "mann-whitney", or "two-proportion-z"
+    alpha: float
+    control: ABArmSummary
+    variant: ABArmSummary
+    diff_absolute: float
+    diff_relative: Optional[float]
+    diff_ci_low: float
+    diff_ci_high: float
+    test_statistic: float
+    df: Optional[float] = None
+    p_value: float
+    significant: bool
+    interpretation: str
+    required_sample_size_per_arm: Optional[int] = None
+    notes: List[str] = []
+
+
+def _interpret_ab(diff_abs: float, rel: Optional[float], p: float, alpha: float, control_name: str, variant_name: str) -> str:
+    if p < alpha:
+        direction = "outperforms" if diff_abs > 0 else "underperforms"
+        rel_str = f" by {rel*100:.1f}%" if rel is not None and rel != 0 else ""
+        return f"Statistically significant — {variant_name} {direction} {control_name}{rel_str} (p={p:.4f})."
+    return f"Not statistically significant at α={alpha}. Difference could be due to chance (p={p:.4f})."
+
+
+@app.post("/abtest/continuous", response_model=ABResponse)
+def abtest_continuous(request: Request, body: ContinuousABRequest) -> ABResponse:
+    """Welch's t-test for two independent samples with unequal variances.
+    Returns means, 95% CIs, and the difference with CI."""
+    _get_paths(request)
+    a = np.asarray(body.control.values, dtype=float)
+    b = np.asarray(body.variant.values, dtype=float)
+    a = a[np.isfinite(a)]
+    b = b[np.isfinite(b)]
+    if len(a) < 2 or len(b) < 2:
+        raise HTTPException(status_code=400, detail="Each arm needs at least 2 numeric values.")
+
+    n_a, n_b = len(a), len(b)
+    mean_a, mean_b = float(a.mean()), float(b.mean())
+    var_a = float(a.var(ddof=1))
+    var_b = float(b.var(ddof=1))
+    se_a = float(np.sqrt(var_a / n_a))
+    se_b = float(np.sqrt(var_b / n_b))
+
+    # Welch's t-test
+    t_stat, p_value = scipy_stats.ttest_ind(a, b, equal_var=False)
+    # Welch-Satterthwaite degrees of freedom
+    df = (var_a / n_a + var_b / n_b) ** 2 / (
+        (var_a / n_a) ** 2 / max(1, n_a - 1) + (var_b / n_b) ** 2 / max(1, n_b - 1)
+    )
+    t_crit = scipy_stats.t.ppf(1 - body.alpha / 2, df)
+
+    # Per-arm 95% CIs (mean ± t_crit * se)
+    ci_a_low = mean_a - t_crit * se_a
+    ci_a_high = mean_a + t_crit * se_a
+    ci_b_low = mean_b - t_crit * se_b
+    ci_b_high = mean_b + t_crit * se_b
+
+    # CI on the difference
+    diff = mean_b - mean_a
+    se_diff = float(np.sqrt(var_a / n_a + var_b / n_b))
+    diff_low = diff - t_crit * se_diff
+    diff_high = diff + t_crit * se_diff
+    rel = (diff / mean_a) if mean_a != 0 else None
+
+    return ABResponse(
+        test="welch-t",
+        alpha=body.alpha,
+        control=ABArmSummary(
+            name=body.control.name, n=n_a, metric=mean_a,
+            std_or_se=se_a, ci_low=ci_a_low, ci_high=ci_a_high,
+        ),
+        variant=ABArmSummary(
+            name=body.variant.name, n=n_b, metric=mean_b,
+            std_or_se=se_b, ci_low=ci_b_low, ci_high=ci_b_high,
+        ),
+        diff_absolute=float(diff),
+        diff_relative=float(rel) if rel is not None else None,
+        diff_ci_low=float(diff_low),
+        diff_ci_high=float(diff_high),
+        test_statistic=float(t_stat),
+        df=float(df),
+        p_value=float(p_value),
+        significant=bool(p_value < body.alpha),
+        interpretation=_interpret_ab(diff, rel, float(p_value), body.alpha, body.control.name, body.variant.name),
+        notes=[
+            "Welch's t-test assumes the samples are independent. It does NOT assume equal variances.",
+            "For heavily non-normal data, consider running a non-parametric test (Mann-Whitney U).",
+        ],
+    )
+
+
+@app.post("/abtest/conversion", response_model=ABResponse)
+def abtest_conversion(request: Request, body: ConversionABRequest) -> ABResponse:
+    """Two-proportion z-test plus a required-sample-size estimate at 80% power."""
+    _get_paths(request)
+    c1, n1 = body.control.conversions, body.control.visitors
+    c2, n2 = body.variant.conversions, body.variant.visitors
+    if c1 > n1 or c2 > n2:
+        raise HTTPException(status_code=400, detail="Conversions cannot exceed visitors.")
+    if c1 == 0 and c2 == 0:
+        raise HTTPException(status_code=400, detail="At least one arm must have conversions.")
+
+    p1 = c1 / n1
+    p2 = c2 / n2
+    p_pool = (c1 + c2) / (n1 + n2)
+    se_pool = float(np.sqrt(p_pool * (1 - p_pool) * (1 / n1 + 1 / n2))) if (0 < p_pool < 1) else 0.0
+    z_stat = (p2 - p1) / se_pool if se_pool > 0 else 0.0
+    p_value = float(2 * (1 - scipy_stats.norm.cdf(abs(z_stat))))
+
+    # Per-arm Wald CIs (good enough for n*p >= 5)
+    z_alpha = scipy_stats.norm.ppf(1 - body.alpha / 2)
+    se1 = float(np.sqrt(p1 * (1 - p1) / n1))
+    se2 = float(np.sqrt(p2 * (1 - p2) / n2))
+    ci1 = (p1 - z_alpha * se1, p1 + z_alpha * se1)
+    ci2 = (p2 - z_alpha * se2, p2 + z_alpha * se2)
+
+    diff = p2 - p1
+    se_diff = float(np.sqrt(se1 ** 2 + se2 ** 2))
+    diff_low = diff - z_alpha * se_diff
+    diff_high = diff + z_alpha * se_diff
+    rel = (diff / p1) if p1 > 0 else None
+
+    # Required sample size per arm to detect this effect at 80% power.
+    required = None
+    if p1 != p2 and 0 < p1 < 1 and 0 < p2 < 1:
+        z_beta = scipy_stats.norm.ppf(0.8)
+        avg_p = (p1 + p2) / 2
+        numerator = (
+            z_alpha * np.sqrt(2 * avg_p * (1 - avg_p))
+            + z_beta * np.sqrt(p1 * (1 - p1) + p2 * (1 - p2))
+        ) ** 2
+        denom = (p2 - p1) ** 2
+        required = int(np.ceil(numerator / denom))
+
+    notes = [
+        "Uses pooled standard error for the test, unpooled (Wald) for per-arm CIs.",
+        "Small samples (np or n(1-p) < 5) may need an exact test instead.",
+    ]
+    if required is not None:
+        if required > max(n1, n2):
+            notes.append(
+                f"You'd need ~{required} per arm to detect this effect at 80% power."
+            )
+        else:
+            notes.append("Sample sizes are sufficient to detect this effect at 80% power.")
+
+    return ABResponse(
+        test="two-proportion-z",
+        alpha=body.alpha,
+        control=ABArmSummary(
+            name=body.control.name, n=n1, metric=p1,
+            std_or_se=se1, ci_low=max(0.0, ci1[0]), ci_high=min(1.0, ci1[1]),
+        ),
+        variant=ABArmSummary(
+            name=body.variant.name, n=n2, metric=p2,
+            std_or_se=se2, ci_low=max(0.0, ci2[0]), ci_high=min(1.0, ci2[1]),
+        ),
+        diff_absolute=float(diff),
+        diff_relative=float(rel) if rel is not None else None,
+        diff_ci_low=float(diff_low),
+        diff_ci_high=float(diff_high),
+        test_statistic=float(z_stat),
+        df=None,
+        p_value=p_value,
+        significant=bool(p_value < body.alpha),
+        interpretation=_interpret_ab(diff, rel, p_value, body.alpha, body.control.name, body.variant.name),
+        required_sample_size_per_arm=required,
+        notes=notes,
+    )
+
+
+@app.post("/vrp/solve", response_model=VRPResponse)
+def vrp_solve(request: Request, body: VRPRequest) -> VRPResponse:
+    """Capacitated VRP solver — Clarke-Wright savings + per-route 2-opt."""
+    _get_paths(request)
+    depot = body.depot
+    customers = body.customers
+    n = len(customers)
+
+    chosen, unserved, _full_dist = _vrp_savings(
+        depot, customers, body.num_vehicles, body.vehicle_capacity
+    )
+
+    # Within each route, run 2-opt with depot at both ends.
+    routes_out = []
+    total_distance = 0.0
+    total_load = 0.0
+    for vehicle_idx, (cust_indices, load) in enumerate(chosen):
+        if not cust_indices:
+            continue
+        route_points = [depot] + [
+            Point(name=customers[i].name, x=customers[i].x, y=customers[i].y)
+            for i in cust_indices
+        ] + [depot]
+        dist = _distance_matrix(route_points)
+        seq = list(range(len(route_points)))
+        # 2-opt over the interior only (keep depot at start and end).
+        improved = True
+        max_iter = 200
+        it = 0
+        while improved and it < max_iter:
+            improved = False
+            it += 1
+            for i in range(1, len(seq) - 2):
+                for j in range(i + 1, len(seq) - 1):
+                    candidate = seq[:i] + seq[i:j + 1][::-1] + seq[j + 1:]
+                    if _route_length(candidate, dist, False) < _route_length(seq, dist, False) - 1e-9:
+                        seq = candidate
+                        improved = True
+        leg_distance = _route_length(seq, dist, False)
+        total_distance += leg_distance
+        total_load += load
+        names = [route_points[k].name or "depot" if k in (0, len(route_points) - 1) else (route_points[k].name or f"#{k}") for k in seq]
+        coords = [[route_points[k].x, route_points[k].y] for k in seq]
+        # Map sequence back to customer indices in the original list (-1 for depot)
+        cust_seq = [(-1 if k == 0 or k == len(route_points) - 1 else cust_indices[k - 1]) for k in seq]
+        routes_out.append(VRPRoute(
+            vehicle=vehicle_idx + 1,
+            sequence=cust_seq,
+            names=names,
+            coordinates=coords,
+            distance=float(leg_distance),
+            load=float(load),
+        ))
+
+    return VRPResponse(
+        routes=routes_out,
+        total_distance=float(total_distance),
+        total_load=float(total_load),
+        unserved=unserved,
+        vehicle_capacity=body.vehicle_capacity,
+        method="clarke-wright + per-route 2-opt",
+    )

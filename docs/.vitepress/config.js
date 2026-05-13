@@ -65,6 +65,19 @@ export default defineConfig({
           ],
         },
         {
+          text: "Tools",
+          collapsed: false,
+          items: [
+            { text: "Overview", link: "/guides/tools" },
+            { text: "Anomaly Detection", link: "/guides/anomaly" },
+            { text: "Churn Prediction", link: "/guides/churn" },
+            { text: "Customer Segmentation", link: "/guides/segmentation" },
+            { text: "A/B Test Analyzer", link: "/guides/abtest" },
+            { text: "TSP", link: "/guides/tsp" },
+            { text: "Vehicle Routing", link: "/guides/vrp" },
+          ],
+        },
+        {
           text: "API Reference",
           collapsed: false,
           items: [

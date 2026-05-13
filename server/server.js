@@ -378,6 +378,114 @@ app.post("/api/welcome-email", requireAuth, async (req, res) => {
 // Passkey (WebAuthn) endpoints — see server/passkeys.js
 app.use("/api/passkeys", passkeyRouter(requireAuth));
 
+// ---------------------------------------------------------------------------
+// Additional tools (anomaly / churn / TSP / VRP)
+// ---------------------------------------------------------------------------
+
+// CSV-based tools: forward multipart upload to FastAPI as-is.
+app.post("/api/anomaly/detect", requireAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+  try {
+    const fd = new FormData();
+    fd.append("file", req.file.buffer, {
+      filename: req.file.originalname || "data.csv",
+      contentType: req.file.mimetype || "text/csv",
+    });
+    if (req.body?.column) fd.append("column", req.body.column);
+    if (req.body?.contamination) fd.append("contamination", req.body.contamination);
+    const r = await axios.post(`${ML_API_URL}/anomaly/detect`, fd, {
+      headers: mlHeaders(req, fd.getHeaders()),
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 60_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Anomaly detection failed");
+  }
+});
+
+app.post("/api/churn/predict", requireAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+  try {
+    const fd = new FormData();
+    fd.append("file", req.file.buffer, {
+      filename: req.file.originalname || "data.csv",
+      contentType: req.file.mimetype || "text/csv",
+    });
+    if (req.body?.label) fd.append("label", req.body.label);
+    const r = await axios.post(`${ML_API_URL}/churn/predict`, fd, {
+      headers: mlHeaders(req, fd.getHeaders()),
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 120_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Churn prediction failed");
+  }
+});
+
+// JSON-based tools: TSP + VRP.
+app.post("/api/tsp/solve", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.post(`${ML_API_URL}/tsp/solve`, req.body, {
+      headers: mlHeaders(req),
+      timeout: 60_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "TSP solve failed");
+  }
+});
+
+app.post("/api/segmentation/run", requireAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+  try {
+    const fd = new FormData();
+    fd.append("file", req.file.buffer, {
+      filename: req.file.originalname || "data.csv",
+      contentType: req.file.mimetype || "text/csv",
+    });
+    if (req.body?.k) fd.append("k", req.body.k);
+    if (req.body?.features) fd.append("features", req.body.features);
+    const r = await axios.post(`${ML_API_URL}/segmentation/run`, fd, {
+      headers: mlHeaders(req, fd.getHeaders()),
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 120_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Segmentation failed");
+  }
+});
+
+app.post("/api/abtest/:mode(continuous|conversion)", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.post(
+      `${ML_API_URL}/abtest/${req.params.mode}`,
+      req.body,
+      { headers: mlHeaders(req), timeout: 30_000 }
+    );
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "A/B test analysis failed");
+  }
+});
+
+app.post("/api/vrp/solve", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.post(`${ML_API_URL}/vrp/solve`, req.body, {
+      headers: mlHeaders(req),
+      timeout: 60_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "VRP solve failed");
+  }
+});
+
 // Permanently delete the caller's uploaded CSV and trained model on the ML
 // service. Called by the client on logout (manual or idle) so files don't
 // linger after a session ends.
