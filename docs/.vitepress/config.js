@@ -24,7 +24,9 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    siteTitle: "RINK Docs",
+    logo: { src: "/rink-logo.png", alt: "RINK Global Services" },
+    logoLink: "https://rinkglobal.com",
+    siteTitle: "RINK Global Services",
     outline: { level: [2, 3], label: "On this page" },
 
     nav: [
