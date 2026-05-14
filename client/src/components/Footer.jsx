@@ -99,8 +99,8 @@ export default function Footer() {
 
           {/* Legal */}
           <FooterColumn title="Legal" className="lg:col-span-2">
-            <FooterAnchor href="/privacy">Privacy</FooterAnchor>
-            <FooterAnchor href="/terms">Terms</FooterAnchor>
+            <FooterLink to="/privacy">Privacy</FooterLink>
+            <FooterLink to="/terms">Terms</FooterLink>
             <FooterAnchor href="/cookies">Cookies</FooterAnchor>
             <FooterAnchor href="/dpa">DPA</FooterAnchor>
           </FooterColumn>

@@ -757,7 +757,15 @@ export default function Auth() {
                 {submitting ? "Creating account…" : "Create account"}
               </SubmitButton>
               <p className="text-xs text-gray-500 text-center">
-                By creating an account, you agree to RINK's terms and privacy policy.
+                By creating an account, you agree to RINK's{" "}
+                <Link to="/terms" className="text-blue-300 hover:text-blue-200">
+                  Terms
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" className="text-blue-300 hover:text-blue-200">
+                  Privacy Policy
+                </Link>
+                .
               </p>
               <p className="text-sm text-gray-400 text-center pt-1">
                 Already have an account?{" "}

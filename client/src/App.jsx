@@ -14,6 +14,8 @@ import TSP from "./pages/TSP";
 import VRP from "./pages/VRP";
 import Contact from "./pages/Contact";
 import Profile from "./pages/Profile";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
 
@@ -92,6 +94,8 @@ export default function App() {
                 }
               />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
             </Routes>
           </main>
           <Footer />
