@@ -461,6 +461,93 @@ app.post("/api/segmentation/run", requireAuth, upload.single("file"), async (req
   }
 });
 
+// ---------------------------------------------------------------------------
+// Report enrichment — AI executive narrative for a tool's report
+// ---------------------------------------------------------------------------
+
+app.post("/api/report/enrich", requireAuth, async (req, res) => {
+  if (!groq) {
+    return res
+      .status(503)
+      .json({ error: "AI assistant is not configured on this deployment." });
+  }
+  const { report, tool } = req.body || {};
+  if (!report || typeof report !== "object") {
+    return res.status(400).json({ error: "Missing report payload." });
+  }
+
+  // Build a structured user message — the LLM uses this as the brief.
+  const metricsText = (report.metrics || [])
+    .map((m) => `  - ${m.label}: ${m.value}${m.hint ? ` (${m.hint})` : ""}`)
+    .join("\n");
+  const insightsText = (report.insights || [])
+    .map((i, idx) => `  ${idx + 1}. ${i}`)
+    .join("\n");
+  const recommendationsText = (report.recommendations || [])
+    .map((r, idx) => `  ${idx + 1}. ${r}`)
+    .join("\n");
+
+  const userPrompt = [
+    `Tool: ${tool || "analysis"}`,
+    `Report title: ${report.title || "Report"}`,
+    report.subtitle ? `Subtitle: ${report.subtitle}` : null,
+    "",
+    "Plain-language summary:",
+    report.summary || "(none provided)",
+    "",
+    "Metrics:",
+    metricsText || "  (none)",
+    "",
+    "Initial findings:",
+    insightsText || "  (none)",
+    "",
+    "Proposed recommendations:",
+    recommendationsText || "  (none)",
+    "",
+    "Write a 3-paragraph executive analysis for a non-technical business leader.",
+    "",
+    "Paragraph 1 — Headline: in plain language, what does the data show? Lead with the single most important finding.",
+    "Paragraph 2 — What's notable: what's surprising, counter-intuitive, or worth a second look? Mention any caveats or limits.",
+    "Paragraph 3 — Action: name 2-3 concrete decisions the business should make next quarter based on this analysis.",
+    "",
+    "Rules:",
+    "- No bullet lists. Prose only.",
+    "- Never invent numbers — synthesize what's given.",
+    "- Avoid jargon (no 'silhouette', 'AUC', 'RMSE' — translate to plain language).",
+    "- Professional, direct tone. No fluff.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      temperature: 0.4,
+      max_tokens: 700,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a senior business analyst at a top management-consulting firm. You write concise, action-oriented executive memos based on data analyses produced by other team members. Your tone is professional and plainspoken. You never invent numbers — you synthesize and contextualize the inputs given to you. You avoid jargon: translate ML terms into business language.",
+        },
+        { role: "user", content: userPrompt },
+      ],
+    });
+
+    const narrative = completion.choices?.[0]?.message?.content?.trim() || "";
+    if (!narrative) {
+      return res.status(502).json({ error: "Model returned an empty response." });
+    }
+    res.json({ narrative, model: GROQ_MODEL });
+  } catch (err) {
+    console.error("[report-enrich] error:", err?.message || err);
+    const status = err?.status || err?.response?.status || 500;
+    const message =
+      err?.response?.data?.error?.message || err?.message || "Enrichment failed.";
+    res.status(status).json({ error: message });
+  }
+});
+
 app.post("/api/abtest/:mode(continuous|conversion)", requireAuth, async (req, res) => {
   try {
     const r = await axios.post(
