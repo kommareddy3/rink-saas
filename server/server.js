@@ -41,6 +41,9 @@ const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const WELCOME_FROM_EMAIL =
   process.env.WELCOME_FROM_EMAIL || "RINK <hello@rinkglobal.com>";
+const CONTACT_FROM_EMAIL =
+  process.env.CONTACT_FROM_EMAIL || WELCOME_FROM_EMAIL;
+const TEAM_EMAIL = process.env.TEAM_EMAIL || "hello@rinkglobal.com";
 const APP_URL = process.env.APP_URL || "https://rinkglobal.com";
 const DOCS_URL = process.env.DOCS_URL || "https://docs.rinkglobal.com";
 
@@ -458,6 +461,125 @@ app.post("/api/segmentation/run", requireAuth, upload.single("file"), async (req
     res.json(r.data);
   } catch (err) {
     handleProxyError(err, res, "Segmentation failed");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Public contact form — POST /api/contact (no auth)
+// ---------------------------------------------------------------------------
+//
+// Spam guards:
+//   - honeypot field "website" — bots fill, humans don't. Silent 200 if filled.
+//   - server-side validation on every field.
+//   - request size cap via Express json limit.
+//
+// Email delivery: Resend if configured, otherwise 503 with a helpful message
+// directing the user to email hello@rinkglobal.com directly.
+
+const CONTACT_REASONS = new Set([
+  "general", "support", "feedback", "sales",
+  "partnership", "security", "account", "other",
+]);
+
+function reasonLabel(r) {
+  return {
+    general: "General inquiry",
+    support: "Technical support",
+    feedback: "Feedback or feature request",
+    sales: "Sales / Enterprise",
+    partnership: "Partnership opportunity",
+    security: "Security disclosure",
+    account: "Account or billing",
+    other: "Something else",
+  }[r] || r;
+}
+
+app.post("/api/contact", async (req, res) => {
+  const {
+    name, email, company, reason, message, consent, website, // honeypot
+  } = req.body || {};
+
+  // Honeypot — bots fill this. Pretend success so they don't retry.
+  if (website && typeof website === "string" && website.trim().length > 0) {
+    console.warn("[contact] honeypot triggered, dropping silently");
+    return res.json({ status: "sent" });
+  }
+
+  // Validation
+  if (!name || typeof name !== "string" || name.trim().length < 1 || name.length > 100) {
+    return res.status(400).json({ error: "Please provide your name (1–100 chars)." });
+  }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: "Please provide a valid email address." });
+  }
+  if (company && (typeof company !== "string" || company.length > 100)) {
+    return res.status(400).json({ error: "Company name is too long." });
+  }
+  if (!reason || !CONTACT_REASONS.has(reason)) {
+    return res.status(400).json({ error: "Please choose a reason for contacting us." });
+  }
+  if (!message || typeof message !== "string" || message.trim().length < 10 || message.length > 5000) {
+    return res.status(400).json({ error: "Message must be between 10 and 5,000 characters." });
+  }
+  if (!consent) {
+    return res.status(400).json({ error: "Please consent to be contacted about your request." });
+  }
+
+  if (!RESEND_API_KEY) {
+    return res.status(503).json({
+      error: `Contact form isn't configured on this deployment. Please email ${TEAM_EMAIL} directly.`,
+    });
+  }
+
+  const subject = `[RINK · ${reasonLabel(reason)}] ${name.trim()}`;
+  const html = `<!DOCTYPE html>
+<html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;padding:40px 20px;color:#111827;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(15,23,42,0.08);">
+<tr><td style="background:linear-gradient(135deg,#0b1b3d 0%,#1e293b 100%);padding:24px 28px;">
+  <div style="color:#fff;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;">Contact form</div>
+  <div style="color:#93c5fd;font-size:11px;margin-top:4px;">rinkglobal.com</div>
+</td></tr>
+<tr><td style="padding:28px;">
+  <h2 style="margin:0 0 14px;font-size:20px;color:#0f172a;">New ${escapeHtml(reasonLabel(reason).toLowerCase())}</h2>
+  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;border-collapse:collapse;">
+    <tr><td style="padding:6px 0;color:#475569;width:120px;">From</td><td style="padding:6px 0;color:#0f172a;"><b>${escapeHtml(name)}</b> &lt;<a href="mailto:${escapeHtml(email)}" style="color:#3b82f6;text-decoration:none;">${escapeHtml(email)}</a>&gt;</td></tr>
+    ${company ? `<tr><td style="padding:6px 0;color:#475569;">Company</td><td style="padding:6px 0;color:#0f172a;">${escapeHtml(company)}</td></tr>` : ""}
+    <tr><td style="padding:6px 0;color:#475569;">Topic</td><td style="padding:6px 0;color:#0f172a;">${escapeHtml(reasonLabel(reason))}</td></tr>
+  </table>
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0;"/>
+  <div style="white-space:pre-wrap;color:#1f2937;line-height:1.6;font-size:14px;">${escapeHtml(message)}</div>
+</td></tr>
+<tr><td style="background:#f9fafb;padding:16px 28px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:11px;">
+  Reply directly to this email to respond to the sender — Reply-To is set to ${escapeHtml(email)}.
+</td></tr>
+</table>
+</body></html>`;
+
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: CONTACT_FROM_EMAIL,
+        to: [TEAM_EMAIL],
+        reply_to: email,
+        subject,
+        html,
+      }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      console.error("[contact] resend error:", r.status, data);
+      return res.status(r.status).json({ error: data?.message || "Could not deliver your message." });
+    }
+    console.log(`[contact] forwarded (${reason}) from ${email}`);
+    res.json({ status: "sent", id: data?.id || null });
+  } catch (err) {
+    console.error("[contact] network error:", err?.message || err);
+    res.status(502).json({ error: "Could not reach email provider. Please try again later." });
   }
 });
 
