@@ -8,6 +8,7 @@ import {
   Tooltip, XAxis, YAxis, ZAxis,
 } from "recharts";
 import api from "../api";
+import ReportStudio from "../components/ReportStudio";
 
 // Visually distinct cluster palette — supports up to 12 clusters.
 const PALETTE = [
@@ -66,6 +67,45 @@ export default function CustomerSegmentation() {
       data: groups[c.id] || [],
       color: PALETTE[c.id % PALETTE.length],
     }));
+  }, [result]);
+  const report = useMemo(() => {
+    if (!result) return null;
+    const largest = [...result.clusters].sort((a, b) => b.size - a.size)[0];
+    const smallest = [...result.clusters].sort((a, b) => a.size - b.size)[0];
+    return {
+      title: "Customer Segmentation Report",
+      subtitle: `Segment profile analysis across ${result.rows.toLocaleString()} rows.`,
+      summary: `RINK identified ${result.n_clusters} customer segments across ${result.rows.toLocaleString()} rows using ${result.features_used.length} feature columns. The largest segment contains ${largest?.size.toLocaleString()} customers (${((largest?.pct || 0) * 100).toFixed(1)}%), and the model${result.auto_k ? " automatically selected the segment count" : " used the manually selected segment count"}.`,
+      metrics: [
+        { label: "Rows", value: result.rows.toLocaleString() },
+        { label: "Segments", value: result.n_clusters },
+        { label: "Silhouette", value: result.silhouette != null ? result.silhouette.toFixed(3) : "N/A", hint: "Higher means cleaner separation" },
+        { label: "Features used", value: result.features_used.length },
+        { label: "Largest segment", value: largest ? largest.size.toLocaleString() : "N/A" },
+        { label: "Smallest segment", value: smallest ? smallest.size.toLocaleString() : "N/A" },
+      ],
+      charts: [
+        "PCA segment map with each customer colored by assigned segment.",
+        "Segment size distribution chart.",
+        "Segment profile cards showing centroid values in original units.",
+      ],
+      insights: [
+        `${result.n_clusters} distinct customer groups are visible in the selected feature space.`,
+        largest ? `Segment ${largest.id + 1} is the largest group and represents ${((largest.pct || 0) * 100).toFixed(1)}% of the dataset.` : "Segment sizes should be reviewed before campaign planning.",
+        `The clustering used ${result.features_used.slice(0, 5).join(", ")}${result.features_used.length > 5 ? ", and more" : ""}.`,
+        result.silhouette != null ? `Silhouette score is ${result.silhouette.toFixed(3)}, which helps judge separation quality.` : "Silhouette score was not available for this run.",
+      ],
+      recommendations: [
+        "Name each segment in business language and validate the profile with sales, success, or operations teams.",
+        "Create separate outreach, pricing, support, or retention strategies for the highest-value segments.",
+        "Re-run segmentation with curated features if the groups do not map cleanly to business actions.",
+      ],
+      slides: [
+        { title: "Segment Landscape", detail: "Show the number of groups, rows analyzed, and quality score." },
+        { title: "Who Is In Each Segment", detail: "Present segment sizes and top centroid characteristics." },
+        { title: "How To Act", detail: "Translate segments into campaigns, tiers, or operational next steps." },
+      ],
+    };
   }, [result]);
 
   return (
@@ -281,6 +321,10 @@ export default function CustomerSegmentation() {
             </Card>
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ReportStudio report={report} />
       </div>
     </div>
   );

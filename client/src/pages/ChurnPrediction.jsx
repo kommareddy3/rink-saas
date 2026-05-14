@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Badge, Button, Card, DropZone, KpiCard, PageHeader,
   SectionHeader, ToastList, prettyError, useToasts,
@@ -8,6 +8,7 @@ import {
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import api from "../api";
+import ReportStudio from "../components/ReportStudio";
 
 const COLORS = { grid: "#1f2937", axis: "#9ca3af" };
 
@@ -47,6 +48,48 @@ export default function ChurnPrediction() {
   const featureRows = result?.feature_importance || [];
   const risk = result?.risk_distribution || { high: 0, medium: 0, low: 0 };
   const cm = result?.confusion || {};
+  const report = useMemo(() => {
+    if (!result) return null;
+    const highRiskPct = result.rows ? (risk.high / result.rows) * 100 : 0;
+    const topFeature = featureRows[0]?.feature || "the strongest available feature";
+    return {
+      title: "Churn Prediction Report",
+      subtitle: `Customer retention analysis across ${result.rows.toLocaleString()} accounts.`,
+      summary: `RINK trained a churn model on ${result.rows.toLocaleString()} customer rows and identified ${risk.high.toLocaleString()} high-risk accounts (${highRiskPct.toFixed(1)}% of the dataset). The held-out accuracy is ${(result.accuracy * 100).toFixed(1)}%${result.auc != null ? ` with AUC ${result.auc.toFixed(3)}` : ""}. The strongest churn signal in this run is ${topFeature}.`,
+      metrics: [
+        { label: "Customers", value: result.rows.toLocaleString() },
+        { label: "Accuracy", value: `${(result.accuracy * 100).toFixed(1)}%`, hint: "Held-out test split" },
+        { label: "AUC", value: result.auc != null ? result.auc.toFixed(3) : "N/A" },
+        { label: "High-risk accounts", value: risk.high.toLocaleString(), hint: "Probability >= 70%" },
+        { label: "Base churn rate", value: `${(result.base_rate * 100).toFixed(1)}%` },
+        { label: "Training rows", value: result.train_size.toLocaleString() },
+      ],
+      charts: [
+        "Feature importance bar chart showing the strongest churn drivers.",
+        "Risk distribution chart for high, medium, and low-risk customers.",
+        "Top at-risk customer table ranked by churn probability.",
+        "Confusion matrix for model review.",
+      ],
+      insights: [
+        `${risk.high.toLocaleString()} accounts should be prioritized for retention outreach.`,
+        `${risk.medium.toLocaleString()} accounts are in the medium-risk band and may benefit from proactive engagement.`,
+        `The top model driver is ${topFeature}, which should be reviewed with customer success and sales teams.`,
+        `The base churn rate is ${(result.base_rate * 100).toFixed(1)}%, useful as a benchmark for retention planning.`,
+      ],
+      recommendations: [
+        "Create a high-risk customer review queue for customer success follow-up.",
+        "Review the top feature drivers and validate whether they map to controllable business actions.",
+        "Run this report on a regular cadence to monitor whether intervention efforts reduce high-risk volume.",
+        "Pair model scores with account owner context before making client or renewal decisions.",
+      ],
+      slides: [
+        { title: "Retention Risk Overview", detail: "Summarize customer count, base churn, accuracy, AUC, and high-risk volume." },
+        { title: "What Drives Risk", detail: "Use feature importance to explain the strongest churn signals." },
+        { title: "Accounts To Prioritize", detail: "Show top at-risk accounts and the recommended outreach plan." },
+        { title: "Next Actions", detail: "Assign owners, outreach timing, and follow-up measurement." },
+      ],
+    };
+  }, [featureRows, result, risk.high, risk.medium]);
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8 max-w-7xl mx-auto">
@@ -201,6 +244,10 @@ export default function ChurnPrediction() {
             </Card>
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ReportStudio report={report} />
       </div>
     </div>
   );

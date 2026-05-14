@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import api from "../api";
+import ReportStudio from "../components/ReportStudio";
 
 const COLORS = {
   control: "#60a5fa",
@@ -125,6 +126,47 @@ export default function ABTest() {
         fill: i === 0 ? COLORS.control : COLORS.variant,
       };
     });
+  }, [result]);
+  const report = useMemo(() => {
+    if (!result) return null;
+    const isConversion = result.test === "two-proportion-z";
+    const metricLabel = isConversion ? "conversion rate" : "mean metric";
+    const lift = isConversion ? fmtPct(result.diff_absolute, 2) : fmt(result.diff_absolute, 3);
+    return {
+      title: "A/B Test Analysis Report",
+      subtitle: `${result.control.name} vs ${result.variant.name} ${isConversion ? "conversion" : "continuous metric"} comparison.`,
+      summary: `${result.variant.name} ${result.diff_absolute >= 0 ? "outperformed" : "underperformed"} ${result.control.name} by ${lift}${result.diff_relative != null ? ` (${fmtPct(result.diff_relative, 1)} relative lift)` : ""}. The result is ${result.significant ? "" : "not "}statistically significant at alpha ${result.alpha}, with p-value ${fmt(result.p_value, 4)}.`,
+      metrics: [
+        { label: "Verdict", value: result.significant ? "Significant" : "Not significant", hint: `alpha ${result.alpha}` },
+        { label: "p-value", value: fmt(result.p_value, 4) },
+        { label: "Absolute lift", value: lift },
+        { label: "Relative lift", value: result.diff_relative != null ? fmtPct(result.diff_relative, 1) : "N/A" },
+        { label: result.control.name, value: isConversion ? fmtPct(result.control.metric, 2) : fmt(result.control.metric, 3), hint: `n=${result.control.n.toLocaleString()}` },
+        { label: result.variant.name, value: isConversion ? fmtPct(result.variant.metric, 2) : fmt(result.variant.metric, 3), hint: `n=${result.variant.n.toLocaleString()}` },
+      ],
+      charts: [
+        `Bar chart comparing ${metricLabel} for control and variant.`,
+        "Confidence interval whiskers for each arm.",
+        "Lift summary chart showing absolute and relative change.",
+      ],
+      insights: [
+        result.interpretation,
+        `Control ${metricLabel}: ${isConversion ? fmtPct(result.control.metric, 2) : fmt(result.control.metric, 3)}.`,
+        `Variant ${metricLabel}: ${isConversion ? fmtPct(result.variant.metric, 2) : fmt(result.variant.metric, 3)}.`,
+        result.required_sample_size_per_arm ? `Estimated required sample size is ${result.required_sample_size_per_arm.toLocaleString()} per arm at 80% power.` : "Sample-size guidance is not available for this run.",
+      ],
+      recommendations: [
+        result.significant ? "Consider rolling out the winning variant after confirming business and implementation risk." : "Continue collecting data or run a larger test before declaring a winner.",
+        "Review confidence intervals, not only the p-value, before making a decision.",
+        "Document test setup, traffic source, duration, and any operational changes that could affect interpretation.",
+      ],
+      notes: result.notes,
+      slides: [
+        { title: "Experiment Setup", detail: "Define control, variant, metric, sample sizes, and alpha." },
+        { title: "Result and Lift", detail: "Show arm metrics, confidence intervals, lift, and p-value." },
+        { title: "Decision Recommendation", detail: "Explain whether to ship, continue, or redesign the experiment." },
+      ],
+    };
   }, [result]);
 
   return (
@@ -412,6 +454,10 @@ export default function ABTest() {
             </Card>
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ReportStudio report={report} />
       </div>
     </div>
   );

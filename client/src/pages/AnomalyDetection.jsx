@@ -8,6 +8,7 @@ import {
   Scatter, Tooltip, XAxis, YAxis,
 } from "recharts";
 import api from "../api";
+import ReportStudio from "../components/ReportStudio";
 
 const COLORS = {
   actual: "#60a5fa",
@@ -88,6 +89,43 @@ export default function AnomalyDetection() {
   };
 
   const anomalousPoints = result?.points?.filter((p) => p.is_anomaly) || [];
+  const report = useMemo(() => {
+    if (!result) return null;
+    const top = [...anomalousPoints].sort((a, b) => b.score - a.score)[0];
+    return {
+      title: "Anomaly Detection Report",
+      subtitle: `Outlier review for ${result.column} across ${result.rows.toLocaleString()} rows.`,
+      summary: `RINK analyzed ${result.rows.toLocaleString()} rows in ${result.column} and flagged ${result.anomalies.toLocaleString()} anomalies (${(result.anomaly_rate * 100).toFixed(2)}%). The configured expected anomaly rate was ${(result.contamination * 100).toFixed(1)}%, and the anomaly threshold score was ${result.threshold.toFixed(4)}.`,
+      metrics: [
+        { label: "Rows analyzed", value: result.rows.toLocaleString() },
+        { label: "Anomalies", value: result.anomalies.toLocaleString() },
+        { label: "Anomaly rate", value: `${(result.anomaly_rate * 100).toFixed(2)}%` },
+        { label: "Cadence", value: result.frequency || "Unknown" },
+        { label: "Threshold", value: result.threshold.toFixed(4) },
+        { label: "Column", value: result.column },
+      ],
+      charts: [
+        "Time-series line chart with flagged anomalies highlighted in red.",
+        "Top anomalies table ranked by anomaly score.",
+        "Anomaly score distribution for validation and threshold review.",
+      ],
+      insights: [
+        `${result.anomalies.toLocaleString()} rows deserve investigation before decisions are made from this dataset.`,
+        top ? `The highest-scoring anomaly is row ${top.index}${top.date ? ` on ${top.date}` : ""} with value ${top.value.toFixed(4)}.` : "No anomalies were flagged under the current threshold.",
+        result.date_column ? `A date column (${result.date_column}) was detected, so the review can be tied to business timing.` : "No date column was detected, so anomalies are indexed by row order.",
+      ],
+      recommendations: [
+        "Review the top anomaly rows against known events, data-entry issues, outages, promotions, or operational changes.",
+        "Re-run with a lower expected anomaly rate for stricter exception reporting if too many points are flagged.",
+        "Create a follow-up investigation list for rows with the highest anomaly scores.",
+      ],
+      slides: [
+        { title: "Exception Summary", detail: "Show rows analyzed, anomaly count, anomaly rate, and threshold." },
+        { title: "Visual Trend Review", detail: "Present the time-series chart with red anomaly markers." },
+        { title: "Top Exceptions", detail: "Rank the highest-scoring anomalies and assign investigation owners." },
+      ],
+    };
+  }, [anomalousPoints, result]);
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8 max-w-7xl mx-auto">
@@ -245,6 +283,10 @@ export default function AnomalyDetection() {
             </Card>
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ReportStudio report={report} />
       </div>
     </div>
   );

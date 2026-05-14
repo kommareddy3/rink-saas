@@ -8,6 +8,7 @@ import {
   Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from "recharts";
 import api from "../api";
+import ReportStudio from "../components/ReportStudio";
 
 const COLORS = {
   point: "#60a5fa",
@@ -99,6 +100,44 @@ export default function TSP() {
     const scatter = points.map((p) => ({ ...p }));
     return { line, scatter };
   }, [result, points]);
+  const report = useMemo(() => {
+    if (!result) return null;
+    const improvement = result.improved_from
+      ? ((1 - result.total_distance / result.improved_from) * 100)
+      : 0;
+    return {
+      title: "Route Optimization Report",
+      subtitle: `Single-route plan across ${points.length.toLocaleString()} locations.`,
+      summary: `RINK optimized a route across ${points.length.toLocaleString()} locations with a total distance of ${result.total_distance.toFixed(2)} units. The optimized sequence is ${improvement.toFixed(1)}% shorter than the nearest-neighbor starting route.`,
+      metrics: [
+        { label: "Locations", value: points.length.toLocaleString() },
+        { label: "Total distance", value: result.total_distance.toFixed(2) },
+        { label: "Improvement", value: `${improvement.toFixed(1)}%`, hint: "vs nearest-neighbor start" },
+        { label: "2-opt iterations", value: result.iterations },
+        { label: "Route type", value: returnToStart ? "Closed loop" : "Open route" },
+      ],
+      charts: [
+        "Route map with optimized stop order.",
+        "Route order table for dispatcher or field-team execution.",
+        "Leg distance table showing distance between each stop.",
+      ],
+      insights: [
+        `The route visits ${points.length.toLocaleString()} locations${returnToStart ? " and returns to the start" : " without returning to the start"}.`,
+        `Total optimized distance is ${result.total_distance.toFixed(2)} units.`,
+        `The optimization improved the starting route by ${improvement.toFixed(1)}%.`,
+      ],
+      recommendations: [
+        "Review the route order with operational constraints such as appointment windows, driver availability, and service duration.",
+        "Export the route order for dispatch or field-team review.",
+        "Re-run with updated coordinates if stops or priorities change.",
+      ],
+      slides: [
+        { title: "Route Objective", detail: "Summarize locations, route type, and optimization goal." },
+        { title: "Optimized Route", detail: "Show the route map and ordered stop list." },
+        { title: "Operational Recommendation", detail: "Explain route savings and execution considerations." },
+      ],
+    };
+  }, [points.length, result, returnToStart]);
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8 max-w-7xl mx-auto">
@@ -263,6 +302,10 @@ export default function TSP() {
             </p>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ReportStudio report={report} />
       </div>
     </div>
   );

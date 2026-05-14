@@ -14,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import ReportStudio from "../components/ReportStudio";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -776,6 +777,53 @@ export default function Analytics() {
 
   const hasData = actual.length > 0;
   const lastDateLabel = dates[dates.length - 1] ? shortDate(dates[dates.length - 1]) : null;
+  const report = useMemo(() => {
+    if (!hasData || !metrics) return null;
+    const lastActual = actual[actual.length - 1];
+    const firstPrediction = predictions[0];
+    const lastPrediction = predictions[predictions.length - 1];
+    const forecastChange =
+      predictions.length && Number.isFinite(firstPrediction) && Number.isFinite(lastPrediction)
+        ? ((lastPrediction - firstPrediction) / Math.max(Math.abs(firstPrediction), 1)) * 100
+        : null;
+    return {
+      title: "Forecasting Report",
+      subtitle: `Forecast analysis for ${column} across ${actual.length.toLocaleString()} rows.`,
+      summary: predictions.length
+        ? `RINK trained a forecasting model on ${metrics.rows_used.toLocaleString()} rows for ${column} and generated ${predictions.length} ${predictions.length === 1 ? freq.unit : freq.units} of forecast output. The latest actual value is ${Number(lastActual).toFixed(3)}, the first forecast is ${Number(firstPrediction).toFixed(3)}, and validation error is RMSE ${metrics.rmse.toFixed(4)} / MAE ${metrics.mae.toFixed(4)}.`
+        : `RINK trained a forecasting model on ${metrics.rows_used.toLocaleString()} rows for ${column}. The dataset contains ${actual.length.toLocaleString()} rows${frequency !== "unknown" ? ` at a ${frequency} cadence` : ""}, with validation error RMSE ${metrics.rmse.toFixed(4)} and MAE ${metrics.mae.toFixed(4)}. Generate a forecast to complete the client-ready outlook.`,
+      metrics: [
+        { label: "Dataset rows", value: actual.length.toLocaleString(), hint: `Column ${column}` },
+        { label: "Rows used", value: metrics.rows_used.toLocaleString() },
+        { label: "Cadence", value: frequency === "unknown" ? "Unknown" : frequency },
+        { label: "RMSE", value: metrics.rmse.toFixed(4) },
+        { label: "MAE", value: metrics.mae.toFixed(4) },
+        { label: "Forecast steps", value: predictions.length || "Not generated" },
+      ],
+      charts: [
+        "Actual vs forecast time-series chart.",
+        "Forecast detail bar chart by future period.",
+        "Confidence band using validation RMSE.",
+        "Recent actual values table for source context.",
+      ],
+      insights: [
+        `The selected forecast column is ${column}.`,
+        frequency !== "unknown" ? `RINK detected a ${frequency} cadence${dateColumn ? ` from ${dateColumn}` : ""}.` : "No reliable date cadence was detected, so the horizon is interpreted as generic steps.",
+        predictions.length && forecastChange != null ? `The forecast changes ${forecastChange >= 0 ? "up" : "down"} ${Math.abs(forecastChange).toFixed(1)}% across the generated horizon.` : "A forecast has not been generated yet for this trained model.",
+        `Validation error is RMSE ${metrics.rmse.toFixed(4)} and MAE ${metrics.mae.toFixed(4)}.`,
+      ],
+      recommendations: [
+        "Use the forecast chart in planning discussions and include the confidence band when presenting uncertainty.",
+        "Review recent actual values for one-off events before committing to operational or financial targets.",
+        "Re-train when new data is available or when switching to a different business metric.",
+      ],
+      slides: [
+        { title: "Forecast Objective", detail: "Define the metric, data window, and planning horizon." },
+        { title: "Trend and Outlook", detail: "Show actual history, forecast line, and uncertainty band." },
+        { title: "Planning Implications", detail: "Translate the forecast into staffing, inventory, revenue, or operational action." },
+      ],
+    };
+  }, [actual, column, dateColumn, freq.unit, freq.units, frequency, hasData, metrics, predictions]);
 
   // Range options for the chart action area
   const rangeOptions =
@@ -1304,6 +1352,8 @@ export default function Analytics() {
               </ul>
             )}
           </Card>
+
+          <ReportStudio report={report} />
         </div>
       </div>
     </div>

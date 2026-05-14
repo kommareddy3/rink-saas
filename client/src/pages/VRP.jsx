@@ -8,6 +8,7 @@ import {
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import api from "../api";
+import ReportStudio from "../components/ReportStudio";
 
 const ROUTE_COLORS = ["#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#f87171", "#22d3ee", "#fb7185", "#84cc16"];
 const COLORS = { grid: "#1f2937", axis: "#9ca3af", depot: "#fbbf24", point: "#94a3b8" };
@@ -122,6 +123,45 @@ export default function VRP() {
       customers: result.unserved.map((idx) => ({ ...customers[idx], group: "unserved" })),
     };
   }, [result, depot, customers]);
+  const report = useMemo(() => {
+    if (!result) return null;
+    const served = customers.length - (result.unserved?.length || 0);
+    const avgLoad = result.routes.length ? result.total_load / result.routes.length : 0;
+    return {
+      title: "Vehicle Routing Report",
+      subtitle: `Fleet plan for ${customers.length.toLocaleString()} customers and ${numVehicles} available vehicles.`,
+      summary: `RINK planned ${result.routes.length} active vehicle routes serving ${served.toLocaleString()} of ${customers.length.toLocaleString()} customers. Total route distance is ${result.total_distance.toFixed(2)} units, total load is ${result.total_load.toFixed(1)}, and ${result.unserved.length} customers are currently unserved under the capacity and vehicle constraints.`,
+      metrics: [
+        { label: "Customers", value: customers.length.toLocaleString() },
+        { label: "Served", value: served.toLocaleString() },
+        { label: "Unserved", value: result.unserved.length.toLocaleString() },
+        { label: "Routes used", value: result.routes.length },
+        { label: "Total distance", value: result.total_distance.toFixed(2) },
+        { label: "Average load", value: avgLoad.toFixed(1), hint: `Capacity ${result.vehicle_capacity}` },
+      ],
+      charts: [
+        "Vehicle route map with one color per active route.",
+        "Route list showing stops, load, and distance by vehicle.",
+        "Unserved customer list for capacity or fleet planning review.",
+      ],
+      insights: [
+        `${result.routes.length} vehicles are active in the proposed plan.`,
+        `${served.toLocaleString()} customers are served and ${result.unserved.length.toLocaleString()} are unserved.`,
+        `Average vehicle load is ${avgLoad.toFixed(1)} against a capacity of ${result.vehicle_capacity}.`,
+        `Total route distance is ${result.total_distance.toFixed(2)} units.`,
+      ],
+      recommendations: [
+        result.unserved.length ? "Increase vehicle count, capacity, or adjust demand assumptions to serve remaining customers." : "Review the proposed routes for real-world constraints before dispatch.",
+        "Validate route feasibility against service windows, road constraints, shift length, and driver availability.",
+        "Use the route list as a dispatcher-ready plan and rerun when demand or stop locations change.",
+      ],
+      slides: [
+        { title: "Fleet Plan Summary", detail: "Show customers, routes used, total load, distance, and unserved count." },
+        { title: "Route Map", detail: "Present one color per vehicle and identify unserved stops if any." },
+        { title: "Dispatch Actions", detail: "Confirm capacity decisions and assign route execution owners." },
+      ],
+    };
+  }, [customers.length, numVehicles, result]);
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8 max-w-7xl mx-auto">
@@ -359,6 +399,10 @@ export default function VRP() {
             </Card>
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ReportStudio report={report} />
       </div>
     </div>
   );
