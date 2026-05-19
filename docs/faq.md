@@ -38,8 +38,24 @@ The file is **never** stored on the gateway or your browser.
 
 ### Can I export my forecast values?
 
-Not yet — copy them out of the workspace tiles or the chart tooltip. A
-CSV export is on the roadmap.
+Yes. The **Forecast Detail** card on the Forecasting page has two CSV
+exports in the top-right:
+
+- **Forecast.csv** — one row per predicted step, with `step`, `date`,
+  `label`, `<column>_predicted`, `ci_low`, and `ci_high`. The confidence
+  band widens with the horizon (×1.0, ×1.25, ×1.5, …) using the model's
+  RMSE.
+- **Full series.csv** — every visible point in one file: historical
+  `<column>_actual`, plus `<column>_predicted` and the CI columns for the
+  forecast portion. Drop it into Excel/Sheets and rebuild the chart
+  yourself.
+
+Both files include a UTF-8 BOM so Excel detects the encoding correctly,
+and are named like `rink-forecast-pmms30-2026-05-14.csv`.
+
+The same export utility is available in
+[`client/src/utils/csv.js`](https://github.com/rinkglobal/rink-saas-v3-ml/blob/main/client/src/utils/csv.js)
+if you're embedding RINK in your own workflow.
 
 ### Why does my chart show demo values?
 

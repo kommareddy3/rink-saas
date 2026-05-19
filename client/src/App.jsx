@@ -14,6 +14,10 @@ import TSP from "./pages/TSP";
 import VRP from "./pages/VRP";
 import Contact from "./pages/Contact";
 import Profile from "./pages/Profile";
+import Changelog from "./pages/Changelog";
+import Security from "./pages/Security";
+import Cookies from "./pages/Cookies";
+import DPA from "./pages/DPA";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -94,6 +98,10 @@ export default function App() {
                 }
               />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/changelog" element={<Changelog />} />
+              <Route path="/security" element={<Security />} />
+              <Route path="/cookies" element={<Cookies />} />
+              <Route path="/dpa" element={<DPA />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
             </Routes>

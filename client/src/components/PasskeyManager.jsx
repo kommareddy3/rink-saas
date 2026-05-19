@@ -53,7 +53,10 @@ export default function PasskeyManager({ onToast }) {
     try {
       const beginRes = await api.post("/api/passkeys/register/begin", {});
       const { options, sessionToken } = beginRes.data;
-      const attResp = await startRegistration({ optionsJSON: options });
+      // @simplewebauthn/browser v10 expects the options object directly.
+      // v11+ wraps it as { optionsJSON: options } — update both call-sites if
+      // you bump the dependency.
+      const attResp = await startRegistration(options);
       await api.post("/api/passkeys/register/finish", {
         sessionToken,
         response: attResp,

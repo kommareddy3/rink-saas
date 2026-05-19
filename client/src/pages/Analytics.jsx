@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import ReportStudio from "../components/ReportStudio";
+import { csvFilename, exportCSV } from "../utils/csv";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1266,6 +1267,12 @@ export default function Analytics() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
                   </svg>
                 }
+                action={
+                  <ExportCsvButtons
+                    onForecastOnly={() => handleExportForecast(predictions, chartData, visibleActual, metrics, column)}
+                    onAllSeries={() => handleExportAllSeries(chartData, column, metrics)}
+                  />
+                }
               />
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
                 {predictions.slice(0, 10).map((p, i) => {
@@ -1436,4 +1443,95 @@ function prettyError(err, fallback) {
   if (data?.detail) return Array.isArray(data.detail) ? JSON.stringify(data.detail) : data.detail;
   if (err?.message) return err.message;
   return fallback;
+}
+
+// ---------------------------------------------------------------------------
+// CSV export
+// ---------------------------------------------------------------------------
+
+// Export just the forecast horizon: one row per predicted step with the
+// confidence band (computed the same way as the chart).
+function handleExportForecast(predictions, chartData, visibleActual, metrics, column) {
+  if (!predictions?.length) return;
+  const rmse = metrics?.rmse ?? 0;
+  const rows = predictions.map((value, i) => {
+    const tile = chartData[(visibleActual?.length || 0) + i] || {};
+    const widening = 1 + i * 0.25;
+    return {
+      step: i + 1,
+      date: tile.iso || "",
+      label: tile.label || `+${i + 1}`,
+      predicted: Number(value.toFixed(6)),
+      lower: rmse ? Number((value - rmse * widening).toFixed(6)) : "",
+      upper: rmse ? Number((value + rmse * widening).toFixed(6)) : "",
+    };
+  });
+  exportCSV(csvFilename(`rink-forecast-${column || "series"}`), rows, {
+    headers: [
+      { key: "step",      label: "step" },
+      { key: "date",      label: "date" },
+      { key: "label",     label: "label" },
+      { key: "predicted", label: `${column || "value"}_predicted` },
+      { key: "lower",     label: "ci_low" },
+      { key: "upper",     label: "ci_high" },
+    ],
+  });
+}
+
+// Export the entire visible chart: actual values + forecast in a single sheet
+// so the user can rebuild the chart in Excel/Sheets.
+function handleExportAllSeries(chartData, column, metrics) {
+  if (!chartData?.length) return;
+  const rmse = metrics?.rmse ?? 0;
+  const rows = chartData.map((p) => ({
+    index: p.name,
+    date: p.iso || "",
+    label: p.label,
+    actual: p.actual ?? "",
+    predicted: p.predicted ?? "",
+    lower: p.bandLow ?? "",
+    upper: p.bandHigh ?? "",
+  }));
+  exportCSV(csvFilename(`rink-series-${column || "data"}`), rows, {
+    headers: [
+      { key: "index",     label: "index" },
+      { key: "date",      label: "date" },
+      { key: "label",     label: "label" },
+      { key: "actual",    label: `${column || "value"}_actual` },
+      { key: "predicted", label: `${column || "value"}_predicted` },
+      { key: "lower",     label: "ci_low" },
+      { key: "upper",     label: "ci_high" },
+    ],
+  });
+  // Suppress unused-var warning for rmse — referenced for future per-row banding.
+  void rmse;
+}
+
+function ExportCsvButtons({ onForecastOnly, onAllSeries }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+      <button
+        type="button"
+        onClick={onForecastOnly}
+        title="Forecast steps only"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-white/5 hover:bg-white/10 border border-white/10 transition"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Forecast.csv
+      </button>
+      <button
+        type="button"
+        onClick={onAllSeries}
+        title="Actuals + forecast in one file"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-white/5 hover:bg-white/10 border border-white/10 transition"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6m-9 0a2 2 0 002 2h6a2 2 0 002-2M5 7h14M5 11h14" />
+        </svg>
+        Full series.csv
+      </button>
+    </div>
+  );
 }

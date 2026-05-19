@@ -495,7 +495,9 @@ export default function Auth() {
       const { options, sessionToken } = beginRes.data;
 
       // 2. Hand off to the browser's WebAuthn UI.
-      const assertion = await startAuthentication({ optionsJSON: options });
+      // NOTE: @simplewebauthn/browser v10 takes the options object directly.
+      // v11+ changed to { optionsJSON: options } — if you upgrade, update here.
+      const assertion = await startAuthentication(options);
 
       // 3. Send the assertion back. The server verifies it and returns
       //    a Supabase OTP token.
