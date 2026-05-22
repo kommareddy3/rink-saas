@@ -23,7 +23,7 @@ import { csvFilename, exportCSV } from "../utils/csv";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB — must match server limit
 const MIN_PREDICT_VALUES = 7; // matches max(LAGS) in the ML service
-const FETCH_LIMIT = 5000;     // ML API hard cap
+const FETCH_LIMIT = 20000;    // ML API hard cap (so "All data" really means all)
 const LS_KEY_COLUMN = "rink:selectedColumn";
 const LS_KEY_RANGE = "rink:dateRange";
 const DOCS_URL = "https://docs.rinkglobal.com";
@@ -465,6 +465,15 @@ export default function Analytics() {
   const [metrics, setMetrics] = useState(null);
   const [activity, setActivity] = useState([]);
 
+  // Schema analysis + training scope (panel group, custom window, excludes)
+  const [analysis, setAnalysis] = useState(null);
+  const [groupColumn, setGroupColumn] = useState(null);
+  const [groupValue, setGroupValue] = useState(""); // "" = all groups combined
+  const [trainStart, setTrainStart] = useState("");
+  const [trainEnd, setTrainEnd] = useState("");
+  const [excludeRanges, setExcludeRanges] = useState([]); // [[start, end], ...]
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
   // Chart range
   const [dateRange, setDateRange] = useState(() => {
     if (typeof window === "undefined") return "all";
@@ -488,11 +497,39 @@ export default function Analytics() {
   // Server interaction
   // ---------------------------------------------------------------------------
 
+  // Build the query params / request body that describe the active training
+  // scope (panel group, custom date window, excluded ranges).
+  const scopeParams = useCallback(() => {
+    const p = {};
+    if (groupColumn && groupValue) {
+      p.group_column = groupColumn;
+      p.group_value = groupValue;
+    }
+    if (trainStart) p.train_start = trainStart;
+    if (trainEnd) p.train_end = trainEnd;
+    const ex = excludeRanges.filter((r) => r[0] && r[1]);
+    if (ex.length) p.exclude = ex.map((r) => `${r[0]}:${r[1]}`).join(",");
+    return p;
+  }, [groupColumn, groupValue, trainStart, trainEnd, excludeRanges]);
+
+  const scopeBody = useCallback(() => {
+    const b = {};
+    if (groupColumn && groupValue) {
+      b.group_column = groupColumn;
+      b.group_value = groupValue;
+    }
+    if (trainStart) b.train_start = trainStart;
+    if (trainEnd) b.train_end = trainEnd;
+    const ex = excludeRanges.filter((r) => r[0] && r[1]);
+    if (ex.length) b.exclude_ranges = ex;
+    return b;
+  }, [groupColumn, groupValue, trainStart, trainEnd, excludeRanges]);
+
   const fetchData = useCallback(
-    async (columnOverride) => {
+    async (columnOverride, extraParams = {}) => {
       setIsLoadingData(true);
       try {
-        const params = { limit: FETCH_LIMIT };
+        const params = { limit: FETCH_LIMIT, ...extraParams };
         const wanted = columnOverride ?? localStorage.getItem(LS_KEY_COLUMN);
         if (wanted) params.column = wanted;
         const res = await api.get("/api/data", { params });
@@ -523,8 +560,29 @@ export default function Analytics() {
     [toast, steps]
   );
 
+  // Profile the dataset schema (date/value/group detection, panel check).
+  // Best-effort: a failure here must not block the workspace.
+  const runAnalyze = useCallback(async () => {
+    setIsAnalyzing(true);
+    try {
+      const res = await api.post("/api/analyze", {});
+      setAnalysis(res.data);
+      setGroupColumn(res.data.suggested_group_column || null);
+      if (res.data.is_panel_data && Array.isArray(res.data.warnings)) {
+        res.data.warnings.forEach((w) => toast.info(w, 7000));
+      }
+      return res.data;
+    } catch {
+      setAnalysis(null);
+      return null;
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     fetchData();
+    runAnalyze();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -661,9 +719,14 @@ export default function Analytics() {
       setValuesText("");
       setPredictions([]);
       setSplitIdx(null);
-      // New CSV may have different columns — clear stored selection
+      // New CSV may have different columns — clear stored selection + scope
       localStorage.removeItem(LS_KEY_COLUMN);
+      setGroupValue("");
+      setTrainStart("");
+      setTrainEnd("");
+      setExcludeRanges([]);
       await fetchData();
+      await runAnalyze();
     } catch (err) {
       dismiss(t);
       toast.error(prettyError(err, "Upload failed."));
@@ -674,8 +737,8 @@ export default function Analytics() {
   };
 
   const trainWithColumn = useCallback(
-    async (colOverride) => {
-      const body = colOverride ? { column: colOverride } : {};
+    async (colOverride, extraBody = {}) => {
+      const body = { ...(colOverride ? { column: colOverride } : {}), ...extraBody };
       const res = await api.post("/api/train", body);
       setMetrics(res.data);
       return res.data;
@@ -683,11 +746,20 @@ export default function Analytics() {
     []
   );
 
+  const scopeSummary = () => {
+    const parts = [];
+    if (groupColumn && groupValue) parts.push(`${groupColumn} = ${groupValue}`);
+    if (trainStart || trainEnd) parts.push(`${trainStart || "start"} → ${trainEnd || "end"}`);
+    const ex = excludeRanges.filter((r) => r[0] && r[1]);
+    if (ex.length) parts.push(`${ex.length} excluded`);
+    return parts.length ? parts.join(" · ") : "all data";
+  };
+
   const handleTrain = async () => {
     setIsTraining(true);
     const t = toast.info("Training model…", 0);
     try {
-      const data = await trainWithColumn(column);
+      const data = await trainWithColumn(column, scopeBody());
       dismiss(t);
       const msg = `Trained on ${data.rows_used.toLocaleString()} rows · column “${data.column}” · RMSE ${data.rmse.toFixed(
         4
@@ -702,6 +774,55 @@ export default function Analytics() {
     }
   };
 
+  // Re-fetch the chart series AND re-train, both honoring the active scope.
+  const applyScope = async () => {
+    setIsTraining(true);
+    const t = toast.info("Applying scope & re-training…", 0);
+    try {
+      await fetchData(column, scopeParams());
+      const data = await trainWithColumn(column, scopeBody());
+      // Predictions from the previous scope are now stale.
+      setPredictions([]);
+      setSplitIdx(null);
+      setValuesText("");
+      dismiss(t);
+      const msg = `Scope: ${scopeSummary()} · trained on ${data.rows_used.toLocaleString()} rows · RMSE ${data.rmse.toFixed(
+        4
+      )} · MAE ${data.mae.toFixed(4)}`;
+      toast.success(msg);
+      logActivity("success", msg);
+    } catch (err) {
+      dismiss(t);
+      toast.error(prettyError(err, "Could not apply training scope."));
+    } finally {
+      setIsTraining(false);
+    }
+  };
+
+  const resetScope = async () => {
+    setGroupValue("");
+    setTrainStart("");
+    setTrainEnd("");
+    setExcludeRanges([]);
+    setIsTraining(true);
+    const t = toast.info("Resetting to all data & re-training…", 0);
+    try {
+      await fetchData(column, {});
+      const data = await trainWithColumn(column, {});
+      setPredictions([]);
+      setSplitIdx(null);
+      setValuesText("");
+      dismiss(t);
+      toast.success(`Reset to all data · trained on ${data.rows_used.toLocaleString()} rows`);
+      logActivity("info", "Training scope reset to all data");
+    } catch (err) {
+      dismiss(t);
+      toast.error(prettyError(err, "Could not reset scope."));
+    } finally {
+      setIsTraining(false);
+    }
+  };
+
   const handleSwitchColumn = async (newCol) => {
     if (!newCol || newCol === column || isSwitching) return;
     setIsSwitching(true);
@@ -709,10 +830,10 @@ export default function Analytics() {
     try {
       // 1. Update local marker so subsequent fetches use it
       localStorage.setItem(LS_KEY_COLUMN, newCol);
-      // 2. Refetch the series for the new column
-      await fetchData(newCol);
-      // 3. Re-train against it
-      const data = await trainWithColumn(newCol);
+      // 2. Refetch the series for the new column (honoring active scope)
+      await fetchData(newCol, scopeParams());
+      // 3. Re-train against it (honoring active scope)
+      const data = await trainWithColumn(newCol, scopeBody());
       dismiss(t);
       // 4. Predictions from old column are now stale
       setPredictions([]);
@@ -1030,6 +1151,157 @@ export default function Analytics() {
               </div>
             )}
           </Card>
+
+          {/* Training scope: panel group, custom window, excluded ranges */}
+          {hasData && (analysis?.is_panel_data || dateColumn) && (
+            <Card className="p-6">
+              <SectionHeader
+                title="Training Scope"
+                subtitle={`Currently: ${scopeSummary()}`}
+                icon={
+                  <svg className="w-5 h-5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L14 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 018 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                  </svg>
+                }
+              />
+
+              {/* Group / ID picker (panel data only) */}
+              {analysis?.is_panel_data && groupColumn && (
+                <div className="mb-4">
+                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
+                    Group ({groupColumn})
+                  </label>
+                  <select
+                    value={groupValue}
+                    onChange={(e) => setGroupValue(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="">All groups (combined)</option>
+                    {(analysis.group_values || []).map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-amber-300/80 mt-1.5">
+                    This dataset has multiple rows per date. Pick one group for a clean single series.
+                  </p>
+                </div>
+              )}
+
+              {/* Custom training window */}
+              {dateColumn && (
+                <div className="mb-4">
+                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
+                    Training window
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={trainStart}
+                      min={analysis?.date_min || undefined}
+                      max={trainEnd || analysis?.date_max || undefined}
+                      onChange={(e) => setTrainStart(e.target.value)}
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    />
+                    <input
+                      type="date"
+                      value={trainEnd}
+                      min={trainStart || analysis?.date_min || undefined}
+                      max={analysis?.date_max || undefined}
+                      onChange={(e) => setTrainEnd(e.target.value)}
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    />
+                  </div>
+                  {(analysis?.date_min || analysis?.date_max) && (
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                      Data spans {analysis.date_min} → {analysis.date_max}. Leave blank to use all of it.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Exclude ranges */}
+              {dateColumn && (
+                <div className="mb-4">
+                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
+                    Exclude ranges
+                  </label>
+                  {excludeRanges.length === 0 && (
+                    <p className="text-[11px] text-gray-500 mb-2">
+                      Drop noisy periods (e.g. an outage or a one-off spike) from training.
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {excludeRanges.map((r, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={r[0]}
+                          onChange={(e) =>
+                            setExcludeRanges((prev) =>
+                              prev.map((x, i) => (i === idx ? [e.target.value, x[1]] : x))
+                            )
+                          }
+                          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                        <span className="text-gray-500 text-xs">→</span>
+                        <input
+                          type="date"
+                          value={r[1]}
+                          onChange={(e) =>
+                            setExcludeRanges((prev) =>
+                              prev.map((x, i) => (i === idx ? [x[0], e.target.value] : x))
+                            )
+                          }
+                          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setExcludeRanges((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-gray-400 hover:text-red-400 transition p-1"
+                          title="Remove range"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExcludeRanges((prev) => [...prev, ["", ""]])}
+                    className="mt-2 text-xs text-blue-300 hover:text-blue-200 transition inline-flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add range
+                  </button>
+                </div>
+              )}
+
+              <div className="flex gap-2 mt-5">
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  onClick={applyScope}
+                  loading={isTraining}
+                  disabled={isSwitching || isAnalyzing}
+                >
+                  Apply & Re-train
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={resetScope}
+                  disabled={isTraining || isSwitching}
+                >
+                  Reset
+                </Button>
+              </div>
+            </Card>
+          )}
 
           {/* Predict */}
           <Card className="p-6">

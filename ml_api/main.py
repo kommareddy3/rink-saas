@@ -102,6 +102,43 @@ ALLOWED_ORIGINS = [
 GATEWAY_SECRET = os.environ.get("GATEWAY_SECRET", "").strip()
 
 # ---------------------------------------------------------------------------
+# Encryption at rest (Fernet / AES-128-CBC + HMAC)
+# ---------------------------------------------------------------------------
+# Uploaded CSVs are encrypted before they touch the disk and decrypted only
+# in memory when needed. Generate a key once with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# and set it as RINK_ENCRYPTION_KEY in the ML service env. If unset, files are
+# stored as plaintext (fine for local dev; set it in production).
+try:
+    from cryptography.fernet import Fernet, InvalidToken  # noqa: E402
+
+    _ENC_KEY = os.environ.get("RINK_ENCRYPTION_KEY", "").strip()
+    _fernet = Fernet(_ENC_KEY.encode()) if _ENC_KEY else None
+except Exception as exc:  # pragma: no cover - import/key failure
+    logging.getLogger("rink-ml").warning("Encryption disabled: %s", exc)
+    _fernet = None
+
+    class InvalidToken(Exception):  # type: ignore
+        pass
+
+ENCRYPTION_ENABLED = _fernet is not None
+
+# Binary file signatures we refuse outright — RINK only accepts text CSVs.
+_BAD_SIGNATURES = [
+    b"MZ",            # Windows PE / .exe / .dll
+    b"\x7fELF",       # Linux ELF binary
+    b"PK\x03\x04",    # zip / xlsx / docx / jar
+    b"PK\x05\x06",    # empty zip
+    b"%PDF",          # PDF
+    b"\x1f\x8b",      # gzip
+    b"Rar!",          # RAR archive
+    b"\xff\xd8\xff",  # JPEG
+    b"\x89PNG",       # PNG
+    b"BM",            # BMP
+    b"\xca\xfe\xba\xbe",  # Java class / Mach-O fat binary
+]
+
+# ---------------------------------------------------------------------------
 # App + CORS
 # ---------------------------------------------------------------------------
 
@@ -122,11 +159,20 @@ app.add_middleware(
 
 class InputData(BaseModel):
     values: List[float] = Field(..., min_length=1)
-    steps: int = Field(10, ge=1, le=200)
+    # Horizon is user-controlled. Cap at 1825 (≈5 years of daily steps) purely
+    # as an abuse guard — there is no hard "30-day" limit.
+    steps: int = Field(10, ge=1, le=1825)
 
 
 class TrainRequest(BaseModel):
     column: Optional[str] = None
+    # Grouped / panel data: forecast a single series by filtering to one group.
+    group_column: Optional[str] = None
+    group_value: Optional[str] = None
+    # Training window. All optional — when omitted, ALL data is used.
+    train_start: Optional[str] = None          # ISO date, inclusive
+    train_end: Optional[str] = None            # ISO date, inclusive
+    exclude_ranges: Optional[List[List[str]]] = None  # [["2020-01-01","2020-12-31"], ...]
 
 
 class TrainResponse(BaseModel):
@@ -135,8 +181,12 @@ class TrainResponse(BaseModel):
     column: str
     available_columns: List[str] = []
     date_column: Optional[str] = None
+    group_column: Optional[str] = None
+    group_value: Optional[str] = None
     frequency: str = "unknown"
     days_per_step: Optional[float] = None
+    train_start: Optional[str] = None
+    train_end: Optional[str] = None
     rmse: float
     mae: float
 
@@ -152,7 +202,36 @@ class DataResponse(BaseModel):
     dates: Optional[List[str]] = None
     frequency: str = "unknown"
     date_column: Optional[str] = None
+    group_column: Optional[str] = None
+    group_value: Optional[str] = None
     days_per_step: Optional[float] = None
+
+
+# --- Schema analysis ---------------------------------------------------------
+
+class ColumnProfile(BaseModel):
+    name: str
+    dtype: str               # "date" | "numeric" | "categorical"
+    unique_count: int
+    null_count: int
+    sample_values: List[str]
+    is_date: bool
+    is_numeric: bool
+    is_id_candidate: bool
+
+
+class AnalyzeResponse(BaseModel):
+    rows: int
+    columns: List[ColumnProfile]
+    suggested_date_column: Optional[str] = None
+    suggested_value_column: Optional[str] = None
+    suggested_group_column: Optional[str] = None
+    is_panel_data: bool = False
+    group_values: Optional[List[str]] = None
+    date_min: Optional[str] = None
+    date_max: Optional[str] = None
+    encryption_at_rest: bool = False
+    warnings: List[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +308,14 @@ def _infer_frequency(dates: pd.Series) -> Tuple[str, Optional[float]]:
     if len(sorted_dates) < 2:
         return ("unknown", None)
     deltas = sorted_dates.diff().dropna()
-    median_seconds = deltas.dt.total_seconds().median()
+    seconds = deltas.dt.total_seconds()
+    # Drop zero-length gaps from duplicate timestamps. Panel/grouped data
+    # (e.g. many rows sharing one date) would otherwise collapse the median to
+    # 0 and report a bogus "every 0.0h" frequency with a ~1h step.
+    seconds = seconds[seconds > 0]
+    if seconds.empty:
+        return ("unknown", None)
+    median_seconds = seconds.median()
     if median_seconds is None or np.isnan(median_seconds):
         return ("unknown", None)
     median_days = median_seconds / 86400.0
@@ -291,6 +377,105 @@ def _resolve_value_column(
 # Dataset/model IO (per-user)
 # ---------------------------------------------------------------------------
 
+# --- Encryption + content scanning ------------------------------------------
+
+def _encrypt_bytes(data: bytes) -> bytes:
+    return _fernet.encrypt(data) if _fernet else data
+
+
+def _decrypt_bytes(data: bytes) -> bytes:
+    """Decrypt if encryption is enabled. Falls back to returning the raw bytes
+    when the payload isn't a Fernet token (e.g. files written before encryption
+    was turned on), so existing data keeps working after enabling a key."""
+    if not _fernet:
+        return data
+    try:
+        return _fernet.decrypt(data)
+    except InvalidToken:
+        return data
+
+
+def _scan_content(contents: bytes) -> None:
+    """Lightweight malware / corruption guard for uploads.
+
+    RINK only accepts text CSVs, so we reject anything that smells like a
+    binary, archive, or executable, and anything that isn't decodable text.
+    This is not a substitute for a full AV engine (see ClamAV note in docs)
+    but it closes the obvious holes for a parse-only pipeline."""
+    head = contents[:8]
+    for sig in _BAD_SIGNATURES:
+        if head.startswith(sig):
+            raise HTTPException(
+                status_code=400,
+                detail="That file looks like a binary or archive, not a CSV. Only plain-text .csv files are accepted.",
+            )
+    try:
+        text = contents.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text = contents.decode("latin-1")
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="File is not valid text and was rejected.",
+            )
+    if "\x00" in text:
+        raise HTTPException(
+            status_code=400,
+            detail="File contains binary (null) bytes and was rejected.",
+        )
+
+
+def _parse_exclude(exclude: Optional[str]) -> Optional[List[List[str]]]:
+    """Parse a query-string exclude list of the form
+    '2020-01-01:2020-12-31,2021-06-01:2021-07-01'."""
+    if not exclude:
+        return None
+    ranges = []
+    for part in exclude.split(","):
+        part = part.strip()
+        if not part or ":" not in part:
+            continue
+        a, b = part.split(":", 1)
+        ranges.append([a.strip(), b.strip()])
+    return ranges or None
+
+
+def _apply_filters(
+    df: pd.DataFrame,
+    date_col: Optional[str],
+    group_column: Optional[str] = None,
+    group_value: Optional[str] = None,
+    train_start: Optional[str] = None,
+    train_end: Optional[str] = None,
+    exclude_ranges: Optional[List[List[str]]] = None,
+) -> pd.DataFrame:
+    """Filter to a single group and/or a date window. df's date_col is assumed
+    already parsed to datetime by _prepare_dataset."""
+    out = df
+    if group_column and group_column in out.columns and group_value is not None:
+        out = out[out[group_column].astype(str) == str(group_value)]
+    if date_col and date_col in out.columns:
+        if train_start:
+            try:
+                out = out[out[date_col] >= pd.to_datetime(train_start)]
+            except Exception:
+                pass
+        if train_end:
+            try:
+                out = out[out[date_col] <= pd.to_datetime(train_end)]
+            except Exception:
+                pass
+        for rng in (exclude_ranges or []):
+            try:
+                s = pd.to_datetime(rng[0])
+                e = pd.to_datetime(rng[1])
+                out = out[~((out[date_col] >= s) & (out[date_col] <= e))]
+            except Exception:
+                pass
+    return out.reset_index(drop=True)
+
+
 def _load_dataset(paths: UserPaths) -> pd.DataFrame:
     if not paths.dataset.exists():
         raise HTTPException(
@@ -298,7 +483,10 @@ def _load_dataset(paths: UserPaths) -> pd.DataFrame:
             detail="No dataset uploaded yet. POST a CSV to /upload first.",
         )
     try:
-        df = pd.read_csv(paths.dataset)
+        raw = _decrypt_bytes(paths.dataset.read_bytes())
+        df = pd.read_csv(io.BytesIO(raw))
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to read CSV: {exc}")
     if df.empty:
@@ -369,6 +557,7 @@ def health() -> dict:
         "users_dir": str(USERS_DIR),
         "user_count": sum(1 for _ in USERS_DIR.glob("*")) if USERS_DIR.exists() else 0,
         "gateway_secret_required": bool(GATEWAY_SECRET),
+        "encryption_at_rest": ENCRYPTION_ENABLED,
     }
 
 
@@ -385,30 +574,158 @@ async def upload(request: Request, file: UploadFile = File(...)) -> dict:
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 10MB).")
 
+    # 1. Malware / corruption guard.
+    _scan_content(contents)
+
+    # 2. Must parse as a real CSV.
     try:
         pd.read_csv(io.BytesIO(contents))
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid CSV: {exc}")
 
+    # 3. Encrypt before it touches disk.
     paths.ensure_dir()
-    paths.dataset.write_bytes(contents)
-    log.info("[user=%s] stored dataset (%d bytes)", paths.user_id, len(contents))
-    return {"status": "uploaded", "bytes": len(contents)}
+    paths.dataset.write_bytes(_encrypt_bytes(contents))
+    log.info(
+        "[user=%s] stored dataset (%d bytes, encrypted=%s)",
+        paths.user_id, len(contents), ENCRYPTION_ENABLED,
+    )
+    return {"status": "uploaded", "bytes": len(contents), "encrypted": ENCRYPTION_ENABLED}
+
+
+@app.post("/analyze", response_model=AnalyzeResponse)
+def analyze(request: Request) -> AnalyzeResponse:
+    """Profile the uploaded CSV so the client can confirm the schema before
+    training. Detects the date column, numeric value candidates, and (for
+    panel data like 'weather per city per day') a grouping/ID column."""
+    paths = _get_paths(request)
+    df = _load_dataset(paths)
+    rows = len(df)
+    date_col = _detect_date_column(df)
+
+    profiles: List[ColumnProfile] = []
+    numeric_cols: List[str] = []
+    id_candidates: List[Tuple[str, int]] = []
+
+    for col in df.columns:
+        s = df[col]
+        nunique = int(s.nunique(dropna=True))
+        nulls = int(s.isna().sum())
+        is_numeric = bool(pd.api.types.is_numeric_dtype(s)) and col != date_col
+        is_date = col == date_col
+        # An ID/group candidate is a non-numeric, non-date column whose
+        # cardinality is low enough to be a category (≥2, ≤90% of rows, ≤1000).
+        is_id = (
+            (not is_numeric)
+            and (not is_date)
+            and 2 <= nunique <= min(1000, max(2, int(0.9 * rows)))
+        )
+        if is_numeric:
+            numeric_cols.append(col)
+        if is_id:
+            id_candidates.append((col, nunique))
+        profiles.append(ColumnProfile(
+            name=col,
+            dtype="date" if is_date else ("numeric" if is_numeric else "categorical"),
+            unique_count=nunique,
+            null_count=nulls,
+            sample_values=[str(v) for v in s.dropna().unique()[:5]],
+            is_date=is_date,
+            is_numeric=is_numeric,
+            is_id_candidate=is_id,
+        ))
+
+    warnings: List[str] = []
+    is_panel = False
+    suggested_group: Optional[str] = None
+    group_values: Optional[List[str]] = None
+
+    # Panel detection: dates repeat AND some categorical makes (date, cat) unique.
+    if date_col:
+        dt = pd.to_datetime(df[date_col], errors="coerce")
+        if dt.duplicated().any() and id_candidates:
+            best = None
+            for col, _n in sorted(id_candidates, key=lambda t: t[1]):
+                if not df.duplicated(subset=[date_col, col]).any():
+                    best = col
+                    break
+            if best is None:
+                best = sorted(id_candidates, key=lambda t: t[1])[0][0]
+            suggested_group = best
+            is_panel = True
+            group_values = [str(v) for v in df[best].dropna().unique()[:500]]
+            warnings.append(
+                f"Multiple rows share the same date — this looks like panel data grouped by "
+                f"'{best}'. Pick one group to forecast a single, clean series."
+            )
+
+    # Suggested value column: prefer known names, else first numeric.
+    suggested_value: Optional[str] = numeric_cols[0] if numeric_cols else None
+    for pref in PREFERRED_VALUE_COLUMNS:
+        if pref in numeric_cols:
+            suggested_value = pref
+            break
+
+    date_min = date_max = None
+    if date_col:
+        dts = pd.to_datetime(df[date_col], errors="coerce").dropna()
+        if len(dts):
+            date_min = dts.min().strftime("%Y-%m-%d")
+            date_max = dts.max().strftime("%Y-%m-%d")
+
+    if not numeric_cols:
+        warnings.append("No numeric columns found — at least one is required to forecast.")
+    if not date_col:
+        warnings.append("No date column detected — rows will be used in file order.")
+
+    return AnalyzeResponse(
+        rows=rows,
+        columns=profiles,
+        suggested_date_column=date_col,
+        suggested_value_column=suggested_value,
+        suggested_group_column=suggested_group,
+        is_panel_data=is_panel,
+        group_values=group_values,
+        date_min=date_min,
+        date_max=date_max,
+        encryption_at_rest=ENCRYPTION_ENABLED,
+        warnings=warnings,
+    )
 
 
 @app.post("/train", response_model=TrainResponse)
 def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse:
     paths = _get_paths(request)
     df, date_col, frequency, days_per_step = _prepare_dataset(paths)
-    excluded = [date_col] if date_col else None
+
+    # The group column (if any) must be excluded from value detection so a
+    # categorical/ID column is never mistaken for the forecast target.
+    excluded = [c for c in [date_col, req.group_column] if c]
     column = _resolve_value_column(df, paths, requested=req.column, exclude=excluded)
     available = _list_numeric_columns(df, exclude=excluded)
 
+    # Filter to a single group + the requested training window.
+    df = _apply_filters(
+        df, date_col,
+        group_column=req.group_column,
+        group_value=req.group_value,
+        train_start=req.train_start,
+        train_end=req.train_end,
+        exclude_ranges=req.exclude_ranges,
+    )
+    # Frequency may shift once filtered to one group — recompute.
+    if date_col and len(df):
+        frequency, days_per_step = _infer_frequency(df[date_col])
+
     series = pd.to_numeric(df[column], errors="coerce").dropna()
     if len(series) < MIN_TRAIN_ROWS:
+        scope = f" for group '{req.group_value}'" if req.group_value else ""
         raise HTTPException(
             status_code=400,
-            detail=f"Need at least {MIN_TRAIN_ROWS} numeric rows in column '{column}'; got {len(series)}.",
+            detail=(
+                f"Need at least {MIN_TRAIN_ROWS} numeric rows in column '{column}'{scope}; "
+                f"got {len(series)}. Widen the date range or pick a group with more history."
+            ),
         )
 
     feats = _build_features(series)
@@ -433,19 +750,27 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
     rmse = float(np.sqrt(mean_squared_error(val_target, val_pred)))
     mae = float(mean_absolute_error(val_target, val_pred))
 
+    train_start = train_end = None
+    if date_col and len(df):
+        train_start = df[date_col].min().strftime("%Y-%m-%d")
+        train_end = df[date_col].max().strftime("%Y-%m-%d")
+
     _save_model(
         paths,
         model,
         {
             "column": column,
             "date_column": date_col,
+            "group_column": req.group_column,
+            "group_value": req.group_value,
             "frequency": frequency,
             "days_per_step": days_per_step,
         },
     )
     log.info(
-        "[user=%s] trained on %d rows (col=%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
-        paths.user_id, len(feats), column, date_col, frequency, rmse, mae,
+        "[user=%s] trained on %d rows (col=%s, group=%s/%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
+        paths.user_id, len(feats), column, req.group_column, req.group_value,
+        date_col, frequency, rmse, mae,
     )
 
     return TrainResponse(
@@ -454,8 +779,12 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
         column=column,
         available_columns=available,
         date_column=date_col,
+        group_column=req.group_column,
+        group_value=req.group_value,
         frequency=frequency,
         days_per_step=days_per_step,
+        train_start=train_start,
+        train_end=train_end,
         rmse=rmse,
         mae=mae,
     )
@@ -476,7 +805,16 @@ def predict(request: Request, data: InputData) -> PredictResponse:
 
 
 @app.get("/data", response_model=DataResponse)
-def get_data(request: Request, limit: int = 500, column: Optional[str] = None) -> DataResponse:
+def get_data(
+    request: Request,
+    limit: int = 5000,
+    column: Optional[str] = None,
+    group_column: Optional[str] = None,
+    group_value: Optional[str] = None,
+    train_start: Optional[str] = None,
+    train_end: Optional[str] = None,
+    exclude: Optional[str] = None,
+) -> DataResponse:
     paths = _get_paths(request)
     if not paths.dataset.exists():
         # Fresh user — show a tiny demo so the dashboard renders.
@@ -491,9 +829,21 @@ def get_data(request: Request, limit: int = 500, column: Optional[str] = None) -
         )
 
     df, date_col, frequency, days_per_step = _prepare_dataset(paths)
-    excluded = [date_col] if date_col else None
+    excluded = [c for c in [date_col, group_column] if c]
     chosen = _resolve_value_column(df, paths, requested=column, exclude=excluded)
     available = _list_numeric_columns(df, exclude=excluded)
+
+    df = _apply_filters(
+        df, date_col,
+        group_column=group_column,
+        group_value=group_value,
+        train_start=train_start,
+        train_end=train_end,
+        exclude_ranges=_parse_exclude(exclude),
+    )
+    if date_col and len(df):
+        frequency, days_per_step = _infer_frequency(df[date_col])
+
     series_raw = pd.to_numeric(df[chosen], errors="coerce")
     mask = series_raw.notna()
 
@@ -502,7 +852,8 @@ def get_data(request: Request, limit: int = 500, column: Optional[str] = None) -
     if date_col:
         dates_iso = df.loc[mask, date_col].dt.strftime("%Y-%m-%d").tolist()
 
-    n = max(1, min(limit, 5000))
+    # Default limit is now generous (5000) so "use all data" really means all.
+    n = max(1, min(limit, 20000))
     series = series.tail(n)
     if dates_iso is not None:
         dates_iso = dates_iso[-n:]
@@ -514,6 +865,8 @@ def get_data(request: Request, limit: int = 500, column: Optional[str] = None) -
         dates=dates_iso,
         frequency=frequency,
         date_column=date_col,
+        group_column=group_column,
+        group_value=group_value,
         days_per_step=days_per_step,
     )
 

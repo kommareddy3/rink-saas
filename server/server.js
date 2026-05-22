@@ -273,6 +273,19 @@ app.post("/api/predict", requireAuth, async (req, res) => {
   }
 });
 
+// Profile the uploaded CSV (schema, date/value/group detection, panel check).
+app.post("/api/analyze", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.post(`${ML_API_URL}/analyze`, {}, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Analysis failed");
+  }
+});
+
 app.get("/api/data", requireAuth, async (req, res) => {
   try {
     const r = await axios.get(`${ML_API_URL}/data`, {
