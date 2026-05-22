@@ -866,8 +866,20 @@ export default function Auth() {
             />
           )}
 
+          {/* Security reassurance */}
+          <div className="mt-7 flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-emerald-500/5 border border-emerald-400/20">
+            <svg className="w-4 h-4 mt-0.5 flex-none text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <p className="text-[11px] leading-relaxed text-gray-400">
+              Your data is <span className="text-gray-200 font-medium">encrypted at rest and in transit</span>,
+              isolated to your account, and deleted automatically when you sign out.{" "}
+              <a href="/security" className="text-blue-300 hover:text-blue-200">Learn how we protect it →</a>
+            </p>
+          </div>
+
           {/* Footer link */}
-          <div className="mt-8 text-center text-xs text-gray-500">
+          <div className="mt-6 text-center text-xs text-gray-500">
             <Link to="/" className="hover:text-gray-300">← Back to home</Link>
             <span className="mx-2">·</span>
             <Link to="/contact" className="hover:text-gray-300">Contact</Link>
@@ -915,7 +927,7 @@ function BrandPanel() {
               "Auto-detect date columns and frequency",
               "Gradient-boosting models with validation metrics",
               "Multi-step forecasts with confidence bands",
-              "Switch columns and re-train in one click",
+              "Encrypted at rest & in transit — deleted on sign-out",
             ].map((line) => (
               <li key={line} className="flex items-start gap-2.5 text-sm text-gray-200">
                 <span className="mt-0.5 w-5 h-5 rounded-md bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center flex-none">

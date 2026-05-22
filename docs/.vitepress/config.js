@@ -31,6 +31,7 @@ export default defineConfig({
 
     nav: [
       { text: "Guides", link: "/guides/", activeMatch: "^/guides/" },
+      { text: "Security", link: "/security", activeMatch: "^/security" },
       { text: "API", link: "/api/", activeMatch: "^/api/" },
       { text: "Deploy", link: "/deployment", activeMatch: "^/deployment" },
       {
@@ -52,6 +53,7 @@ export default defineConfig({
             { text: "Welcome", link: "/" },
             { text: "Getting Started", link: "/getting-started" },
             { text: "Architecture", link: "/architecture" },
+            { text: "Security & data protection", link: "/security" },
           ],
         },
         {

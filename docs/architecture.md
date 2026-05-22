@@ -50,30 +50,42 @@ Express app) at `api.rinkglobal.com`.
 - **AI assistant proxy.** Calls Groq with the configured model
   (`llama-3.3-70b-versatile` by default). Includes a system prompt that
   scopes the assistant to ML/forecasting topics.
-- **ML proxy.** Forwards `/api/upload`, `/api/train`, `/api/predict`,
-  `/api/data`, and `/api/user-data` to FastAPI. Adds `X-User-ID:
-  <supabase_uuid>` and (optionally) `X-Gateway-Secret` to every call.
+- **ML proxy.** Forwards `/api/upload`, `/api/analyze`, `/api/train`,
+  `/api/predict`, `/api/data`, and `/api/user-data` to FastAPI. Adds
+  `X-User-ID: <supabase_uuid>` and (optionally) `X-Gateway-Secret` to
+  every call. Train bodies and data query params (group, date window,
+  excludes) pass straight through.
 - **File staging.** Uploads use Multer in-memory (Vercel's filesystem is
   read-only) and stream the file to FastAPI as multipart.
 
 ## Tier 3 — FastAPI ML service
 
-**Stack:** Python 3.11 + FastAPI + scikit-learn + pandas.
+**Stack:** Python 3.11 + FastAPI + scikit-learn + pandas + cryptography
+(Fernet, for encryption at rest).
 
 **Hosted on:** Render Starter ($7/mo) with a 1 GB persistent disk at
 `/var/data`.
 
 **Responsibilities:**
 
+- **Upload scanning + encryption at rest.** Uploads are scanned for
+  binary/archive/executable signatures and null bytes (rejected with
+  `400`), then **encrypted with Fernet (AES-128-CBC + HMAC)** before the
+  first disk write. Plaintext never lands on disk. See [Security](/security).
 - Per-user file storage under `/var/data/users/<user_id>/`:
-  - `uploaded.csv` — the user's last-uploaded dataset.
+  - `uploaded.csv` — the user's last-uploaded dataset, **encrypted at rest**.
   - `model.joblib` — the trained `GradientBoostingRegressor`.
-  - `meta.joblib` — column / date column / frequency metadata.
+  - `meta.joblib` — column / date / group / frequency metadata.
+- **Schema profiling** (`/analyze`) — date/value detection and
+  panel/ID-column detection for grouped data.
 - Date column detection and chronological sort.
-- Frequency inference (daily / weekly / monthly / quarterly / yearly).
+- Frequency inference (daily / weekly / monthly / quarterly / yearly),
+  robust to duplicate timestamps in panel data.
+- **Group-aware, windowed training** — filter to one group, a custom
+  `train_start`/`train_end` window, and/or excluded date ranges.
 - Feature engineering: lags `[1, 2, 3, 5, 7]`, rolling means `[3, 7]`.
 - Train / validate / save / load.
-- Recursive multi-step prediction.
+- Recursive multi-step prediction (up to 1825 steps).
 - `DELETE /user-data` — wipes the calling user's directory.
 
 ## Authentication flow
@@ -110,7 +122,9 @@ FastAPI                                       /var/data/users/<uuid>/
 
 Users own their data while signed in. The moment they sign out (manual or
 idle), the gateway issues `DELETE /api/user-data` and the ML service
-removes their directory.
+removes their directory. While stored, the CSV sits **encrypted at rest**
+and travels only over TLS — see [Security & data protection](/security)
+for the full model.
 
 ## Deployment topology
 

@@ -43,9 +43,12 @@ adapts to the inferred cadence:
 - **Monthly data** → "10 months"
 - **Unknown cadence** → "10 steps"
 
-You can request up to 200 steps via the API directly. Beyond ~20 steps,
-the forecast quickly converges to a fixed point because the recursive
-feedback dampens out — that's a property of the model, not a bug.
+You can request up to **1825 steps** (≈ five years of daily points) via
+the API directly — there is no hard 30-day limit. Beyond ~20 steps,
+though, the forecast quickly converges to a fixed point because the
+recursive feedback dampens out — that's a property of the model, not a
+bug, so very long horizons are best read as "trend direction" rather than
+precise per-step values.
 
 ## Pre-filling the input
 
@@ -111,6 +114,15 @@ window of history changes.
 
 The selection is saved to localStorage so reloading the page keeps your
 zoom level.
+
+## Forecasts and training scope
+
+A forecast is always based on the **most-recently trained model**, which
+reflects whatever [training scope](./training#training-scope-group-window-and-excludes)
+was active when you last trained — a single group, a custom date window,
+or excluded ranges. If you change the scope, click **Apply & Re-train**
+first, then regenerate the forecast so the projection lines up with the
+data on screen.
 
 ## Forecast vs new training data
 

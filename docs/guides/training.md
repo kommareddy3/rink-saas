@@ -75,15 +75,41 @@ current dataset. This is useful when:
 Training time scales linearly with rows. For a typical 1,000-row CSV on
 Render Starter, training takes well under a second.
 
+## Training scope: group, window, and excludes
+
+By default RINK trains on **all** of your data. When you need a tighter
+fit, the **Training Scope** card lets you narrow what the model learns
+from — without re-uploading anything:
+
+| Control | What it does |
+| ------- | ------------ |
+| **Group** | For [panel data](./uploading#panel-grouped-data), forecast a single series (e.g. one city) instead of the blended whole. The group/ID column is never used as the forecast target. |
+| **Training window** | Restrict training to a `start → end` date range. Either bound is optional; leave both blank for all history. |
+| **Exclude ranges** | Drop one or more date ranges from training — handy for a known outage, a one-off promotion, or a data-quality gap. |
+
+Set what you need, then click **Apply & Re-train**. The chart refreshes to
+the same scope so what you see matches what the model learned, and stale
+forecasts are cleared. **Reset** returns to all data.
+
+Under the hood these map to the `group_column` / `group_value`,
+`train_start` / `train_end`, and `exclude_ranges` fields on
+[`/api/train`](/api/gateway#post-api-train-🔒) (and the matching query
+parameters on `/api/data`). The training response echoes the **actual**
+`train_start` / `train_end` used after filtering.
+
+> Filtering too aggressively can leave fewer than the 30 rows needed to
+> train. If so, you'll get a clear *"widen the date range or pick a group
+> with more history"* error — just relax the scope.
+
 ## Persistence
 
 After successful training, three files are written to your user directory:
 
 ```
 /var/data/users/<your_uuid>/
-├── uploaded.csv     # the original CSV, preserved as-is
+├── uploaded.csv     # your CSV, encrypted at rest (Fernet) in production
 ├── model.joblib     # the fitted GradientBoostingRegressor
-└── meta.joblib      # { column, date_column, frequency, days_per_step }
+└── meta.joblib      # { column, date_column, group_column, group_value, frequency, days_per_step }
 ```
 
 The model loads from disk on every prediction request, so you can sign out
@@ -98,7 +124,7 @@ setting) and your model would still be available.
 
 | Symptom                                                             | Cause                                                                     |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `Need at least 30 numeric rows`                                     | Fewer than 30 valid (non-NaN) values in the target column                 |
+| `Need at least 30 numeric rows`                                     | Fewer than 30 valid (non-NaN) values in the target column — often the [training scope](#training-scope-group-window-and-excludes) is too narrow. Widen the window or pick a group with more history. |
 | `CSV has no numeric columns`                                        | All columns are strings/empty                                             |
 | `Failed to read CSV`                                                | File is corrupt, has unescaped quotes, or uses an unusual delimiter       |
 | `Need at least 7 historical values`                                 | Tried to predict with too short an input                                  |

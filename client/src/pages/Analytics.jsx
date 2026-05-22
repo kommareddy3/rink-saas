@@ -1092,6 +1092,15 @@ export default function Analytics() {
             >
               {isUploading ? "Uploading…" : "Upload & Train"}
             </Button>
+            <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-gray-500">
+              <svg className="w-3.5 h-3.5 text-emerald-400/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Scanned &amp; encrypted at rest ·{" "}
+              <a href="https://docs.rinkglobal.com/security" target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-blue-200">
+                how it&apos;s protected
+              </a>
+            </p>
           </Card>
 
           {/* Train + column picker */}

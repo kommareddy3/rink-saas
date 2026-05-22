@@ -167,8 +167,8 @@ const DIFFERENTIATORS = [
     ),
   },
   {
-    title: "Your data, your boundaries",
-    body: "Per-user storage isolated by UUID. Files auto-deleted on sign-out or after 4 hours idle. SSO + passkeys supported.",
+    title: "Encrypted and private by default",
+    body: "Every upload is encrypted at rest (Fernet / AES-128 + HMAC) before it touches disk, and travels only over TLS. Per-user storage isolated by UUID, scanned on upload, and auto-deleted on sign-out or after 4 hours idle. SSO + passkeys supported.",
     icon: (
       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v3m0-3h.01M5 11V7a7 7 0 0114 0v4M5 11h14M5 11H3m16 0h2" />
@@ -206,7 +206,7 @@ const FAQ = [
   },
   {
     q: "How is my data secured?",
-    a: "Authentication via Supabase (with SSO and passkey support). Per-user file storage scoped to your Supabase UUID. Files auto-delete on sign-out or after 4 hours of inactivity. We never train on your data.",
+    a: "Every CSV is encrypted at rest (Fernet / AES-128 + HMAC) before it's written to disk, and encrypted in transit over TLS. Uploads are scanned and rejected if they aren't real CSVs. Storage is isolated per user (scoped to your Supabase UUID) and auto-deleted on sign-out or after 4 hours of inactivity. Auth supports SSO and passkeys. We never sell your data or train shared models on it — see the Security page for the full breakdown.",
   },
   {
     q: "Can I integrate RINK into my own app?",
@@ -267,6 +267,28 @@ export default function Home() {
               className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-medium text-white bg-white/5 hover:bg-white/10 border border-white/10 transition"
             >
               See all 7 tools
+            </a>
+          </div>
+
+          {/* Security trust line */}
+          <div className="mt-6 flex flex-wrap justify-center items-center gap-x-5 gap-y-2 text-xs text-gray-400">
+            <span className="inline-flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Encrypted at rest &amp; in transit
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Auto-deleted on sign-out
+            </span>
+            <a href="/security" className="inline-flex items-center gap-1.5 text-blue-300 hover:text-blue-200 transition">
+              How we protect your data
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
             </a>
           </div>
 

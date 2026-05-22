@@ -3,7 +3,50 @@
 Quick answers to the questions everyone asks. If yours isn't here,
 [contact the team](https://rinkglobal.com/contact).
 
+## Data security & privacy
+
+### Is my uploaded data encrypted?
+
+Yes. Every CSV is **encrypted at rest** with Fernet (AES-128-CBC + an
+HMAC-SHA256 integrity tag) **before** it is written to disk — the
+plaintext file never lands on our storage. It's also encrypted in transit
+(HTTPS on every hop) and only decrypted transiently in memory to serve
+*your* forecasts. The full model is on the [Security](/security) page.
+
+### Who can see my data?
+
+Only you. Each user's files live in a directory keyed to their own user
+ID, every request is authenticated, and there is no endpoint that returns
+another user's data. We don't sell or share your data, and we don't train
+any shared/global model on it — every model is fit only on your dataset.
+
+### How long do you keep my files?
+
+Only for your active session. When you sign out — manually or via the
+4-hour idle timeout — your CSV, model, and metadata are deleted from the
+server. Re-uploading also replaces the previous file.
+
+### Do you scan uploads?
+
+Yes. Before storage, RINK rejects anything that isn't a real CSV —
+executables, archives (ZIP/XLSX), PDFs, images, gzip, and files with
+binary/null bytes are all blocked with a `400`. See
+[upload scanning](/security#upload-scanning).
+
+### Is the AI assistant sent my data?
+
+No. The assistant answers forecasting questions and is **not** given your
+uploaded dataset.
+
 ## Data & uploads
+
+### My data has many rows per date (per store, per city…). Can RINK forecast it?
+
+Yes — that's **panel/grouped data**. RINK detects it automatically,
+suggests the group/ID column, and shows a **Training Scope** card where
+you pick one group (e.g. one store) to forecast a clean single series.
+Leaving it on *All groups* trains on the combined data. See
+[Uploading → panel data](/guides/uploading#panel-grouped-data).
 
 ### My CSV is sorted newest-to-oldest. Will RINK handle it?
 
@@ -27,14 +70,16 @@ values you supply are reasonable for the column.
 
 ### Where did my uploaded CSV go?
 
-When you upload, the file is forwarded to the ML service and saved at
-`/var/data/users/<your_uuid>/uploaded.csv`. It stays there until:
+When you upload, the file is forwarded to the ML service and saved —
+**encrypted at rest** — at `/var/data/users/<your_uuid>/uploaded.csv`. It
+stays there until:
 
 - You upload a new CSV (replaces the old one).
 - You sign out (manual or idle, after 4 hours).
 - An admin runs maintenance on the ML service.
 
-The file is **never** stored on the gateway or your browser.
+The file is **never** stored on the gateway or your browser, and never
+written to disk in plaintext.
 
 ### Can I export my forecast values?
 

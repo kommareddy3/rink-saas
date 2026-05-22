@@ -18,6 +18,12 @@ If a non-CSV file is selected, the upload zone rejects it client-side
 before any bytes leave your browser. The same check is repeated on the
 gateway and the ML service.
 
+> 🔒 **Your file is encrypted and scanned.** Before anything is stored, the
+> ML service scans the upload and rejects binaries, archives, executables,
+> and anything that isn't plain-text CSV. Accepted files are then
+> **encrypted at rest** — the plaintext CSV never touches our disk. Full
+> details on the [Security](/security) page.
+
 ## Date column detection
 
 When you upload, RINK looks for a date column in this order:
@@ -56,6 +62,31 @@ used.
 You can override the auto-detection at any time using the column picker in
 the **Model** card — see [Switching columns](#switching-columns) below.
 
+## Panel / grouped data
+
+Some datasets carry **many rows per date** — for example temperature per
+city per day, or sales per store per week. This is called *panel* (or
+*grouped*) data, and forecasting it as one blended series gives poor
+results because several independent series are interleaved.
+
+RINK detects this automatically. When it sees repeating dates plus a
+low-cardinality categorical column (an **ID / group column**) that makes
+each `(date, group)` pair unique, it:
+
+- Flags the dataset as panel data and **suggests the group column**
+  (e.g. `city`).
+- Lists the available groups (e.g. `Detroit`, `Austin`, `Seattle`).
+- Shows a hint: *"Multiple rows share the same date — pick one group to
+  forecast a single, clean series."*
+
+A **Training Scope** card then appears in the workspace with a group
+picker. Choose a group and click **Apply & Re-train** to forecast that one
+series. Leaving it on *All groups* trains on the combined data.
+
+This profiling is exposed via the [`/api/analyze`](/api/gateway#post-api-analyze-🔒)
+endpoint, which also reports `date_min` / `date_max` and an
+`encryption_at_rest` flag.
+
 ## What happens after upload
 
 1. The file is forwarded to the ML service (which streams it to disk under
@@ -86,12 +117,15 @@ Uploading a new CSV clears the saved choice.
 
 ## Storage and cleanup
 
+- Your CSV is **encrypted at rest** before it is written to disk (when an
+  encryption key is configured — always on in production). See
+  [Security → encryption at rest](/security#encryption-at-rest).
 - Each user's data is isolated under `/var/data/users/<user_id>/` — other
   users **cannot** see or access your data.
 - Files are deleted automatically when you sign out (manual or after the
   4-hour idle timeout).
-- There is currently no batch-export feature; copy your forecast values
-  out of the workspace if you want them after sign-out.
+- Forecast values can be exported to CSV from the Forecast Detail card —
+  see [the FAQ](/faq#can-i-export-my-forecast-values).
 
 ## Limits
 

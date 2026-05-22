@@ -68,6 +68,10 @@ Uploads a CSV and auto-trains the model. Requires auth.
 | ----- | ---- | -------------------- |
 | file  | file | `.csv`, ≤ 10 MB      |
 
+The uploaded file is **scanned** (non-CSV/binary uploads are rejected) and
+**encrypted at rest** by the ML service before storage. See
+[Security](/security).
+
 **Response**
 
 ```json
@@ -89,31 +93,71 @@ Uploads a CSV and auto-trains the model. Requires auth.
 
 **Errors**
 
-- `400` — no file, wrong extension, malformed CSV.
+- `400` — no file, wrong extension, malformed CSV, or rejected by the
+  content scanner (binary/archive/executable/null bytes).
 - `401` — auth failure.
 - `413` — file > 10 MB.
 - `502` — ML service unreachable.
 
 ---
 
-## `POST /api/train` 🔒
+## `POST /api/analyze` 🔒
 
-Re-trains the model on the user's persisted CSV.
+Profiles the uploaded CSV: detects the date column, suggests a value
+column, and flags panel/grouped data plus a candidate group/ID column.
+Forwarded to the ML service's [`/analyze`](/api/ml-service#post-analyze).
 
-**Request** (optional body)
+**Request**: no body required.
+
+**Response** (abridged)
 
 ```json
-{ "column": "pmms15" }
+{
+  "rows": 600,
+  "suggested_date_column": "day",
+  "suggested_value_column": "temp",
+  "suggested_group_column": "city",
+  "is_panel_data": true,
+  "group_values": ["Detroit", "Austin", "Seattle"],
+  "date_min": "2021-01-01",
+  "date_max": "2021-07-19",
+  "encryption_at_rest": true,
+  "warnings": ["…pick one group to forecast a single, clean series."]
+}
+```
+
+---
+
+## `POST /api/train` 🔒
+
+Re-trains the model on the user's persisted CSV. The body is forwarded
+verbatim to the ML service, so all training-scope options are available.
+
+**Request** (optional body — omit everything to train on **all data**)
+
+```json
+{
+  "column": "temp",
+  "group_column": "city",
+  "group_value": "Austin",
+  "train_start": "2021-02-01",
+  "train_end": "2021-06-30",
+  "exclude_ranges": [["2021-03-15", "2021-03-31"]]
+}
 ```
 
 | Field  | Type   | Description                                               |
 | ------ | ------ | --------------------------------------------------------- |
 | column | string (optional) | Override the auto-detected target column.    |
+| group_column / group_value | string (optional) | Forecast one group from panel data. |
+| train_start / train_end | ISO date (optional) | Inclusive training window. |
+| exclude_ranges | `[[start, end], …]` (optional) | Date ranges to drop. |
 
-If `column` is omitted, the gateway falls back to the last-saved column
-or auto-detection.
+If everything is omitted, the gateway falls back to the last-saved column
+or auto-detection and uses the full history.
 
-**Response** — same shape as the `training` block in `/api/upload`.
+**Response** — same shape as the `training` block in `/api/upload`, plus
+`group_column`, `group_value`, `train_start`, and `train_end`.
 
 ---
 
@@ -133,7 +177,7 @@ Generates a multi-step forecast from a list of recent values.
 | Field  | Type      | Constraint                              |
 | ------ | --------- | --------------------------------------- |
 | values | number[]  | At least 7 numeric values, oldest first |
-| steps  | integer   | 1 – 200 (default 10)                    |
+| steps  | integer   | 1 – 1825 (default 10)                   |
 
 **Response**
 
@@ -155,12 +199,15 @@ Generates a multi-step forecast from a list of recent values.
 Returns the user's stored time-series, sorted ascending by date when
 detected.
 
-**Query parameters**
+**Query parameters** (all forwarded to the ML service)
 
 | Param  | Type    | Default | Description                                |
 | ------ | ------- | ------- | ------------------------------------------ |
-| limit  | integer | 500     | Max rows to return (cap: 5000)             |
+| limit  | integer | 5000    | Max rows to return (cap: 20000)            |
 | column | string  | —       | Override the auto-detected target column.  |
+| group_column / group_value | string | — | Filter panel data to one group.    |
+| train_start / train_end | ISO date | — | Inclusive date window.                |
+| exclude | string | —      | Excluded ranges as `start:end,start:end`.  |
 
 **Response**
 
@@ -172,6 +219,8 @@ detected.
   "dates": ["1971-04-02", "1971-04-09", "1971-04-16", …],
   "frequency": "weekly",
   "date_column": "date",
+  "group_column": null,
+  "group_value": null,
   "days_per_step": 7.0
 }
 ```
