@@ -1,8 +1,9 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import AIAssistant from "./components/AIAssistant";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Analytics from "./pages/Analytics";
@@ -22,6 +23,14 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
+
+// Floating AI assistant, available everywhere except the sign-in / sign-up
+// page so users can ask for help without leaving whatever they're doing.
+function GlobalAssistant() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/auth")) return null;
+  return <AIAssistant />;
+}
 
 export default function App() {
   return (
@@ -107,6 +116,7 @@ export default function App() {
             </Routes>
           </main>
           <Footer />
+          <GlobalAssistant />
         </div>
       </BrowserRouter>
     </AuthProvider>

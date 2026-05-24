@@ -101,6 +101,41 @@ parameters on `/api/data`). The training response echoes the **actual**
 > train. If so, you'll get a clear *"widen the date range or pick a group
 > with more history"* error — just relax the scope.
 
+## Multivariate forecasting (predictor columns)
+
+By default a model is **univariate** — it predicts the target from the
+target's own past. When your dataset has other numeric columns that
+influence the target (ad spend driving revenue, temperature driving energy
+use, visits driving sales), select them as **predictor columns** in the
+Model card and re-train. The model then learns from the target's lags
+**and** the lagged values of each predictor.
+
+How it works:
+
+- Only **lagged** predictor values (one or more periods back) are used, so
+  there's no look-ahead leakage — the model never peeks at a predictor's
+  value for the period it's forecasting.
+- To forecast several steps ahead, RINK also fits a small companion model
+  for each predictor and advances every series together, one step at a
+  time.
+- Invalid selections are ignored automatically: the target itself, a
+  non-numeric/category column, or a column that no longer exists.
+
+A few practical notes:
+
+- More predictors need more aligned rows. If too few rows remain after
+  aligning the target with every predictor, you'll get a clear error — drop
+  a predictor or widen the window.
+- Predictors are most useful for short-to-medium horizons. Over long
+  horizons the companion forecasts of the predictors themselves drift, so
+  the extra signal fades.
+- Switching the target column automatically removes it from the predictor
+  list (a column can't be both).
+
+Because a multivariate forecast needs future predictor values, it is
+computed from your **stored series** rather than the numbers in the "Most
+recent values" box — see [Generating forecasts](./forecasting#forecasts-and-training-scope).
+
 ## Persistence
 
 After successful training, three files are written to your user directory:

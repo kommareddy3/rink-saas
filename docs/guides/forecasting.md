@@ -124,6 +124,12 @@ or excluded ranges. If you change the scope, click **Apply & Re-train**
 first, then regenerate the forecast so the projection lines up with the
 data on screen.
 
+If you trained a [multivariate model](./training#multivariate-forecasting-predictor-columns)
+(with predictor columns), the forecast is computed from your **stored
+series** rather than the "Most recent values" box — RINK needs the
+predictors' history to project them forward alongside the target, so edits
+to that box don't affect a multivariate forecast.
+
 ## Forecast vs new training data
 
 Forecasts don't write anything to disk. They're computed on demand from

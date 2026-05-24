@@ -166,6 +166,10 @@ class InputData(BaseModel):
 
 class TrainRequest(BaseModel):
     column: Optional[str] = None
+    # Multivariate forecasting: extra numeric columns used as exogenous
+    # predictors (covariates) for the target. When omitted, the model is
+    # univariate (target's own lags only).
+    feature_columns: Optional[List[str]] = None
     # Grouped / panel data: forecast a single series by filtering to one group.
     group_column: Optional[str] = None
     group_value: Optional[str] = None
@@ -179,6 +183,7 @@ class TrainResponse(BaseModel):
     status: str
     rows_used: int
     column: str
+    feature_columns: List[str] = []
     available_columns: List[str] = []
     date_column: Optional[str] = None
     group_column: Optional[str] = None
@@ -531,6 +536,54 @@ def _features_from_history(history: List[float]) -> np.ndarray:
     return np.array(feats, dtype=float).reshape(1, -1)
 
 
+# --- Multivariate (exogenous) feature engineering ---------------------------
+
+def _build_features_mv(
+    df: pd.DataFrame, target: str, feature_cols: List[str]
+) -> pd.DataFrame:
+    """Build a feature matrix for multivariate forecasting.
+
+    Features: the target's own lags + rolling means (as in the univariate
+    case) PLUS the *lagged* values of each exogenous column. Only lags
+    (lag >= 1) of the exogenous columns are used — never their contemporaneous
+    value — so there is no look-ahead leakage and the recursive forecaster can
+    advance every series one step at a time.
+
+    Column order is deterministic and must match ``_mv_feature_row``.
+    """
+    y = pd.to_numeric(df[target], errors="coerce")
+    out = pd.DataFrame({"y": y.values})
+    for lag in LAGS:
+        out[f"y_lag{lag}"] = out["y"].shift(lag)
+    for w in ROLLING_WINDOWS:
+        out[f"y_rmean{w}"] = out["y"].shift(1).rolling(w).mean()
+    for col in feature_cols:
+        s = pd.to_numeric(df[col], errors="coerce").reset_index(drop=True)
+        for lag in LAGS:
+            out[f"{col}_lag{lag}"] = s.shift(lag)
+    return out.dropna().reset_index(drop=True)
+
+
+def _mv_feature_row(
+    target_hist: List[float],
+    exog_hist: dict,
+    feature_cols: List[str],
+) -> np.ndarray:
+    """Build a single feature vector for the next step, matching the column
+    order produced by ``_build_features_mv``. ``*_hist`` lists hold values up to
+    (but not including) the step being predicted."""
+    feats: List[float] = []
+    for lag in LAGS:
+        feats.append(target_hist[-lag])
+    for w in ROLLING_WINDOWS:
+        feats.append(float(np.mean(target_hist[-(w + 1):-1])))
+    for col in feature_cols:
+        h = exog_hist[col]
+        for lag in LAGS:
+            feats.append(h[-lag])
+    return np.array(feats, dtype=float).reshape(1, -1)
+
+
 def _save_model(paths: UserPaths, model: GradientBoostingRegressor, meta: dict) -> None:
     paths.ensure_dir()
     joblib.dump(model, paths.model)
@@ -728,10 +781,51 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
             ),
         )
 
-    feats = _build_features(series)
-    feature_cols = [c for c in feats.columns if c != "y"]
-    X = feats[feature_cols].values
-    y = feats["y"].values
+    # Resolve exogenous feature columns (multivariate). Keep only valid numeric
+    # columns that aren't the target itself.
+    requested_features = req.feature_columns or []
+    feature_columns = [c for c in requested_features if c in available and c != column]
+
+    exog_models: dict = {}
+    if feature_columns:
+        # ---- Multivariate: target lags + lagged exogenous covariates ----
+        feats = _build_features_mv(df, column, feature_columns)
+        if len(feats) < MIN_TRAIN_ROWS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Need at least {MIN_TRAIN_ROWS} aligned rows for multivariate "
+                    f"training; got {len(feats)} after aligning '{column}' with "
+                    f"{feature_columns}. Remove a feature column or widen the date range."
+                ),
+            )
+        fcols = [c for c in feats.columns if c != "y"]
+        X = feats[fcols].values
+        y = feats["y"].values
+
+        # A small component model per exogenous column lets us advance each
+        # covariate one step at a time during recursive forecasting.
+        min_hist = max(max(LAGS), max(ROLLING_WINDOWS) + 1)
+        for col in feature_columns:
+            col_series = pd.to_numeric(df[col], errors="coerce").dropna()
+            cfeats = _build_features(col_series)
+            if len(cfeats) < min_hist:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Feature column '{col}' has too few numeric rows to model.",
+                )
+            ccols = [c for c in cfeats.columns if c != "y"]
+            cm = GradientBoostingRegressor(
+                n_estimators=200, learning_rate=0.05, max_depth=3, random_state=42,
+            )
+            cm.fit(cfeats[ccols].values, cfeats["y"].values)
+            exog_models[col] = cm
+    else:
+        # ---- Univariate: target's own lags + rolling means ----
+        feats = _build_features(series)
+        fcols = [c for c in feats.columns if c != "y"]
+        X = feats[fcols].values
+        y = feats["y"].values
 
     split = max(1, int(len(X) * 0.8))
     X_train, X_val = X[:split], X[split:]
@@ -760,6 +854,8 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
         model,
         {
             "column": column,
+            "feature_columns": feature_columns,
+            "exog_models": exog_models,
             "date_column": date_col,
             "group_column": req.group_column,
             "group_value": req.group_value,
@@ -768,15 +864,16 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
         },
     )
     log.info(
-        "[user=%s] trained on %d rows (col=%s, group=%s/%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
-        paths.user_id, len(feats), column, req.group_column, req.group_value,
-        date_col, frequency, rmse, mae,
+        "[user=%s] trained on %d rows (col=%s, features=%s, group=%s/%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
+        paths.user_id, len(feats), column, feature_columns or "-",
+        req.group_column, req.group_value, date_col, frequency, rmse, mae,
     )
 
     return TrainResponse(
         status="trained",
         rows_used=len(feats),
         column=column,
+        feature_columns=feature_columns,
         available_columns=available,
         date_column=date_col,
         group_column=req.group_column,
@@ -790,12 +887,73 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
     )
 
 
+def _forecast_multivariate(
+    paths: UserPaths, model, meta: dict, steps: int
+) -> List[float]:
+    """Recursive multi-step forecast for a multivariate model.
+
+    Seeds histories from the user's stored series (group-filtered to match
+    training), then for each step: predicts the target from target lags +
+    lagged covariates, appends it, and advances every covariate one step using
+    its own component model (persistence if a component model is missing)."""
+    target = meta["column"]
+    feature_cols = [c for c in (meta.get("feature_columns") or [])]
+    exog_models = meta.get("exog_models") or {}
+
+    df, date_col, _freq, _dps = _prepare_dataset(paths)
+    df = _apply_filters(
+        df, date_col,
+        group_column=meta.get("group_column"),
+        group_value=meta.get("group_value"),
+    )
+    cols = [target] + [c for c in feature_cols if c in df.columns]
+    if target not in df.columns:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Target column '{target}' is no longer in the dataset; re-train.",
+        )
+    feature_cols = [c for c in feature_cols if c in df.columns]
+    sub = df[cols].apply(lambda c: pd.to_numeric(c, errors="coerce")).dropna().reset_index(drop=True)
+    min_hist = max(max(LAGS), max(ROLLING_WINDOWS) + 1)
+    if len(sub) < min_hist:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not enough aligned history to forecast (need {min_hist}, have {len(sub)}).",
+        )
+
+    target_hist = sub[target].astype(float).tolist()
+    exog_hist = {c: sub[c].astype(float).tolist() for c in feature_cols}
+
+    predictions: List[float] = []
+    for _ in range(steps):
+        x = _mv_feature_row(target_hist, exog_hist, feature_cols)
+        yhat = float(model.predict(x)[0])
+        predictions.append(yhat)
+        target_hist.append(yhat)
+        for c in feature_cols:
+            cm = exog_models.get(c)
+            if cm is None:
+                exog_hist[c].append(exog_hist[c][-1])  # persistence fallback
+            else:
+                cx = _features_from_history(exog_hist[c])
+                exog_hist[c].append(float(cm.predict(cx)[0]))
+    return predictions
+
+
 @app.post("/predict", response_model=PredictResponse)
 def predict(request: Request, data: InputData) -> PredictResponse:
     paths = _get_paths(request)
-    model, _meta = _load_model(paths)
+    model, meta = _load_model(paths)
+    feature_cols = (meta.get("feature_columns") if isinstance(meta, dict) else None) or []
+
+    # Multivariate models need future covariate values, so they forecast from
+    # the user's stored series rather than the client-supplied `values`.
+    if feature_cols:
+        predictions = _forecast_multivariate(paths, model, meta, data.steps)
+        return PredictResponse(predictions=predictions)
+
     history = list(data.values)
-    predictions: List[float] = []
+    predictions = []
     for _ in range(data.steps):
         x = _features_from_history(history)
         yhat = float(model.predict(x)[0])

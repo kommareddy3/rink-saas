@@ -83,6 +83,9 @@ Express app) at `api.rinkglobal.com`.
   robust to duplicate timestamps in panel data.
 - **Group-aware, windowed training** — filter to one group, a custom
   `train_start`/`train_end` window, and/or excluded date ranges.
+- **Univariate or multivariate** — optional `feature_columns` add exogenous
+  predictors (target lags + lagged covariates), with per-predictor
+  component models so covariates can be advanced during recursion.
 - Feature engineering: lags `[1, 2, 3, 5, 7]`, rolling means `[3, 7]`.
 - Train / validate / save / load.
 - Recursive multi-step prediction (up to 1825 steps).

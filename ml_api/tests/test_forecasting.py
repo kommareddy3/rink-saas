@@ -126,6 +126,46 @@ def test_predict_before_train(make_client):
     assert r.status_code == 409
 
 
+def test_multivariate_training_and_predict(make_client):
+    client, _main, headers = make_client(user="fcastmv00000001")
+    upload_csv(client, headers, single_series_csv(n=400))  # has 'value' + 'sales'
+    r = _train(client, headers, column="value", feature_columns=["sales"])
+    assert r.status_code == 200
+    d = r.json()
+    assert d["status"] == "trained"
+    assert d["column"] == "value"
+    assert d["feature_columns"] == ["sales"]
+
+    # Multivariate predict forecasts from stored data; values are ignored.
+    p = client.post("/predict", headers=headers, json={"values": [1.0] * 10, "steps": 12})
+    assert p.status_code == 200
+    preds = p.json()["predictions"]
+    assert len(preds) == 12
+    assert all(isinstance(v, (int, float)) for v in preds)
+
+
+def test_multivariate_drops_invalid_features(make_client):
+    client, _main, headers = make_client(user="fcastmv00000002")
+    upload_csv(client, headers, single_series_csv(n=120))
+    # target itself, a non-existent column, and a categorical are all invalid
+    r = _train(client, headers, column="value",
+               feature_columns=["value", "nope", "region"])
+    assert r.status_code == 200
+    assert r.json()["feature_columns"] == []
+
+
+def test_univariate_after_multivariate(make_client):
+    client, _main, headers = make_client(user="fcastmv00000003")
+    upload_csv(client, headers, single_series_csv(n=200))
+    _train(client, headers, column="value", feature_columns=["sales"])
+    # retraining without features clears the multivariate state
+    r = _train(client, headers, column="value")
+    assert r.json()["feature_columns"] == []
+    hist = client.get("/data", headers=headers, params={"column": "value"}).json()["data"][-15:]
+    p = client.post("/predict", headers=headers, json={"values": hist, "steps": 5})
+    assert len(p.json()["predictions"]) == 5
+
+
 def test_infer_frequency_handles_duplicate_dates(make_client):
     import pandas as pd
     _client, main, _headers = make_client()

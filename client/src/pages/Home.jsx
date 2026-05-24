@@ -2,7 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/rink-logo.png";
-import AIAssistant from "../components/AIAssistant";
 
 // ---------------------------------------------------------------------------
 // Data — all dynamic content centralised so it's easy to evolve copy.
@@ -13,7 +12,7 @@ const TOOLS = [
     name: "Forecasting",
     tagline: "Predict future values",
     description:
-      "Gradient-boosting models with engineered lag features. Auto-detects cadence (daily, weekly, monthly) and produces confidence-banded forecasts.",
+      "Gradient-boosting models with engineered lag features — univariate or multivariate with predictor columns. Auto-detects cadence (daily, weekly, monthly) and produces confidence-banded forecasts.",
     href: "/analytics",
     accent: "from-blue-500/20 to-blue-500/0 text-blue-300",
     icon: (
@@ -544,8 +543,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* AI Assistant floating widget */}
-      <AIAssistant />
     </div>
   );
 }

@@ -106,7 +106,8 @@ builds features, and fits a `GradientBoostingRegressor`.
 
 ```json
 {
-  "column": "temp",
+  "column": "revenue",
+  "feature_columns": ["ad_spend", "visits"],
   "group_column": "city",
   "group_value": "Austin",
   "train_start": "2021-02-01",
@@ -118,6 +119,7 @@ builds features, and fits a `GradientBoostingRegressor`.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `column` | string | Override the auto-detected target column. |
+| `feature_columns` | string[] | **Multivariate**: extra numeric columns used as exogenous predictors. Invalid entries (the target itself, non-numeric, or missing columns) are dropped. Omit for a univariate model. |
 | `group_column` / `group_value` | string | Forecast a single series from panel data by filtering to one group. The group column is never mistaken for the target. |
 | `train_start` / `train_end` | ISO date | Inclusive training window. Either may be omitted. |
 | `exclude_ranges` | `[[start, end], …]` | Date ranges to drop from training (e.g. an outage). |
@@ -128,8 +130,9 @@ builds features, and fits a `GradientBoostingRegressor`.
 {
   "status": "trained",
   "rows_used": 120,
-  "column": "temp",
-  "available_columns": ["temp"],
+  "column": "revenue",
+  "feature_columns": ["ad_spend", "visits"],
+  "available_columns": ["revenue", "ad_spend", "visits"],
   "date_column": "day",
   "group_column": "city",
   "group_value": "Austin",
@@ -143,7 +146,17 @@ builds features, and fits a `GradientBoostingRegressor`.
 ```
 
 `train_start` / `train_end` echo the **actual** first/last dates used
-after filtering.
+after filtering. `feature_columns` echoes the predictors actually applied.
+
+#### Multivariate forecasting
+
+When `feature_columns` is supplied, the target is modelled from its own
+lags **and** the *lagged* values of each predictor (lag ≥ 1, so there is no
+look-ahead leakage). To make recursive multi-step forecasting possible, RINK
+also fits a small component model per predictor, so every covariate can be
+advanced one step at a time alongside the target. Because of this, a
+multivariate `/predict` forecasts from the user's **stored series** rather
+than client-supplied `values` (see below).
 
 ### `POST /predict`
 
@@ -158,6 +171,11 @@ Recursive multi-step forecast.
 `steps` is `1 – 1825` (≈ five years of daily steps; a generous abuse
 guard, not a hard 30-day limit). `values` needs at least 7 numeric
 points, oldest first.
+
+For a **multivariate** model (trained with `feature_columns`), `values` is
+ignored — the forecast is seeded from the user's stored series (group-filtered
+to match training) so the required covariate history is available. The
+request body is otherwise identical.
 
 **Response**
 
@@ -207,8 +225,8 @@ shutil.rmtree("/var/data/users/<X-User-ID>")
 └── users/
     └── <user_uuid>/
         ├── uploaded.csv     # encrypted at rest (Fernet) when a key is set
-        ├── model.joblib     # joblib-pickled GradientBoostingRegressor
-        └── meta.joblib      # { column, date_column, group_column, group_value, frequency, days_per_step }
+        ├── model.joblib     # joblib-pickled GradientBoostingRegressor (target)
+        └── meta.joblib      # { column, feature_columns, exog_models, date_column, group_column, group_value, frequency, days_per_step }
 ```
 
 When `RINK_ENCRYPTION_KEY` is set, `uploaded.csv` holds a Fernet

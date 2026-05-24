@@ -25,7 +25,7 @@ features:
     details: Lag features (1, 2, 3, 5, 7) and rolling means (3, 7) feed a Gradient Boosting model with a held-out validation split.
   - icon: 🔮
     title: Multi-step forecasts
-    details: Recursive forecasting with flexible horizons, group/panel filtering, and custom training windows — plus a confidence band that widens with the horizon.
+    details: Univariate or multivariate recursive forecasting with flexible horizons, group/panel filtering, and custom training windows — plus a confidence band that widens with the horizon.
   - icon: 🔐
     title: Encrypted & private
     details: Every CSV is encrypted at rest (Fernet/AES) before it touches disk, isolated to your account, scanned on upload, and deleted automatically on sign-out.

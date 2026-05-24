@@ -137,7 +137,8 @@ verbatim to the ML service, so all training-scope options are available.
 
 ```json
 {
-  "column": "temp",
+  "column": "revenue",
+  "feature_columns": ["ad_spend", "visits"],
   "group_column": "city",
   "group_value": "Austin",
   "train_start": "2021-02-01",
@@ -149,6 +150,7 @@ verbatim to the ML service, so all training-scope options are available.
 | Field  | Type   | Description                                               |
 | ------ | ------ | --------------------------------------------------------- |
 | column | string (optional) | Override the auto-detected target column.    |
+| feature_columns | string[] (optional) | **Multivariate** — extra numeric columns used as predictors. Invalid entries are dropped. |
 | group_column / group_value | string (optional) | Forecast one group from panel data. |
 | train_start / train_end | ISO date (optional) | Inclusive training window. |
 | exclude_ranges | `[[start, end], …]` (optional) | Date ranges to drop. |
@@ -157,7 +159,8 @@ If everything is omitted, the gateway falls back to the last-saved column
 or auto-detection and uses the full history.
 
 **Response** — same shape as the `training` block in `/api/upload`, plus
-`group_column`, `group_value`, `train_start`, and `train_end`.
+`feature_columns`, `group_column`, `group_value`, `train_start`, and
+`train_end`.
 
 ---
 
@@ -178,6 +181,10 @@ Generates a multi-step forecast from a list of recent values.
 | ------ | --------- | --------------------------------------- |
 | values | number[]  | At least 7 numeric values, oldest first |
 | steps  | integer   | 1 – 1825 (default 10)                   |
+
+> For a **multivariate** model (trained with `feature_columns`), `values` is
+> ignored — the forecast is seeded from your stored series so the predictor
+> history is available. Send any non-empty `values` to satisfy the schema.
 
 **Response**
 

@@ -472,6 +472,7 @@ export default function Analytics() {
   const [trainStart, setTrainStart] = useState("");
   const [trainEnd, setTrainEnd] = useState("");
   const [excludeRanges, setExcludeRanges] = useState([]); // [[start, end], ...]
+  const [featureColumns, setFeatureColumns] = useState([]); // multivariate predictors
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Chart range
@@ -522,8 +523,11 @@ export default function Analytics() {
     if (trainEnd) b.train_end = trainEnd;
     const ex = excludeRanges.filter((r) => r[0] && r[1]);
     if (ex.length) b.exclude_ranges = ex;
+    // Multivariate predictors (drop the target if it slipped in).
+    const feats = featureColumns.filter((c) => c && c !== column);
+    if (feats.length) b.feature_columns = feats;
     return b;
-  }, [groupColumn, groupValue, trainStart, trainEnd, excludeRanges]);
+  }, [groupColumn, groupValue, trainStart, trainEnd, excludeRanges, featureColumns, column]);
 
   const fetchData = useCallback(
     async (columnOverride, extraParams = {}) => {
@@ -725,6 +729,7 @@ export default function Analytics() {
       setTrainStart("");
       setTrainEnd("");
       setExcludeRanges([]);
+      setFeatureColumns([]);
       await fetchData();
       await runAnalyze();
     } catch (err) {
@@ -830,6 +835,8 @@ export default function Analytics() {
     try {
       // 1. Update local marker so subsequent fetches use it
       localStorage.setItem(LS_KEY_COLUMN, newCol);
+      // A column can't be both target and predictor — drop it from features.
+      setFeatureColumns((prev) => prev.filter((c) => c !== newCol));
       // 2. Refetch the series for the new column (honoring active scope)
       await fetchData(newCol, scopeParams());
       // 3. Re-train against it (honoring active scope)
@@ -1131,6 +1138,48 @@ export default function Analytics() {
               </p>
             )}
 
+            {/* Multivariate predictor columns */}
+            {availableColumns.filter((c) => c !== column).length > 0 && (
+              <div className="mt-5">
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
+                  Predictor columns{" "}
+                  <span className="normal-case tracking-normal text-gray-500">(optional · multivariate)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {availableColumns
+                    .filter((c) => c !== column)
+                    .map((c) => {
+                      const on = featureColumns.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() =>
+                            setFeatureColumns((prev) =>
+                              prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+                            )
+                          }
+                          className={`px-2.5 py-1 text-xs rounded-lg border transition ${
+                            on
+                              ? "bg-blue-500/20 border-blue-400/40 text-blue-200"
+                              : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      );
+                    })}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  {featureColumns.length
+                    ? `Forecasting “${column}” with ${featureColumns.length} predictor${
+                        featureColumns.length === 1 ? "" : "s"
+                      }. Click Re-train to apply.`
+                    : "Add columns whose history helps predict the target (e.g. spend → revenue)."}
+                </p>
+              </div>
+            )}
+
             <div className="mt-5">
               <Button
                 variant="success"
@@ -1158,6 +1207,11 @@ export default function Analytics() {
                   </div>
                 </div>
               </div>
+            )}
+            {metrics?.feature_columns?.length > 0 && (
+              <p className="mt-3 text-[11px] text-blue-300/80">
+                Multivariate · predictors: {metrics.feature_columns.join(", ")}
+              </p>
             )}
           </Card>
 
