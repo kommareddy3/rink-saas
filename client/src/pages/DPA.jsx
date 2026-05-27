@@ -155,7 +155,7 @@ export default function DPA() {
         </p>
         <p className="text-sm text-gray-300 leading-relaxed">
           Where Customer requires RINK's direct assistance, contact{" "}
-          <a href="mailto:privacy@rinkglobal.com" className="text-blue-300 hover:text-blue-200">privacy@rinkglobal.com</a>.
+          <a href="mailto:admin@rinkglobal.com" className="text-blue-300 hover:text-blue-200">admin@rinkglobal.com</a>.
         </p>
       </Card>
 
@@ -192,7 +192,7 @@ export default function DPA() {
         <SectionHeader title="12. Contact" />
         <p className="text-sm text-gray-200 leading-relaxed">
           Questions about this DPA, requests for a signed copy, or data protection inquiries:{" "}
-          <a href="mailto:privacy@rinkglobal.com" className="text-blue-300 hover:text-blue-200">privacy@rinkglobal.com</a>.
+          <a href="mailto:admin@rinkglobal.com" className="text-blue-300 hover:text-blue-200">admin@rinkglobal.com</a>.
         </p>
         <p className="text-xs text-gray-500 mt-3">
           For general support, use our <Link to="/contact" className="text-blue-300 hover:text-blue-200">contact form</Link>.

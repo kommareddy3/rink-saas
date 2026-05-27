@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import api from "../api";
 import ReportStudio from "../components/ReportStudio";
+import InfoTip from "../components/InfoTip";
 
 const COLORS = { grid: "#1f2937", axis: "#9ca3af" };
 
@@ -101,21 +102,29 @@ export default function ChurnPrediction() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Customers" value={result ? result.rows.toLocaleString() : "—"} accent="blue" />
+        <KpiCard
+          label="Customers"
+          info="Number of rows (customers) in your uploaded file that were scored."
+          value={result ? result.rows.toLocaleString() : "—"}
+          accent="blue"
+        />
         <KpiCard
           label="Accuracy"
+          info="Share of customers the model classified correctly on a held-out test split. Useful, but can look high when churners are rare — check AUC too."
           value={result ? `${(result.accuracy * 100).toFixed(1)}%` : "—"}
           accent="emerald"
           hint="Held-out test split"
         />
         <KpiCard
           label="AUC"
+          info="Area Under the ROC Curve — how well the model separates churners from non-churners regardless of threshold. 0.5 = no better than chance, 1.0 = perfect."
           value={result?.auc != null ? result.auc.toFixed(3) : "—"}
           accent="purple"
           hint="Area under ROC curve"
         />
         <KpiCard
           label="High-risk"
+          info="Customers the model scored at 70%+ probability of churning — your priority list to act on."
           value={result ? risk.high.toLocaleString() : "—"}
           accent="red"
           hint="Probability ≥ 70%"
@@ -160,10 +169,10 @@ export default function ChurnPrediction() {
             <Card className="p-6">
               <SectionHeader title="Confusion matrix" subtitle="Test set, threshold 0.5." />
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <Cell label="True negatives" value={cm.tn} tone="emerald" />
-                <Cell label="False positives" value={cm.fp} tone="amber" />
-                <Cell label="False negatives" value={cm.fn} tone="amber" />
-                <Cell label="True positives" value={cm.tp} tone="emerald" />
+                <Cell label="True negatives" value={cm.tn} tone="emerald" info="Customers who stayed and the model correctly predicted would stay." />
+                <Cell label="False positives" value={cm.fp} tone="amber" info="Customers the model flagged as churn risks but who actually stayed (false alarms)." />
+                <Cell label="False negatives" value={cm.fn} tone="amber" info="Customers who churned but the model predicted would stay (missed churners)." />
+                <Cell label="True positives" value={cm.tp} tone="emerald" info="Customers who churned and the model correctly predicted would churn." />
               </div>
               <p className="text-[11px] text-gray-500 mt-3">
                 Base churn rate in your data: {(result.base_rate * 100).toFixed(1)}%.
@@ -253,14 +262,17 @@ export default function ChurnPrediction() {
   );
 }
 
-function Cell({ label, value, tone = "emerald" }) {
+function Cell({ label, value, tone = "emerald", info }) {
   const tones = {
     emerald: "bg-emerald-500/10 border-emerald-400/30 text-emerald-200",
     amber: "bg-amber-500/10 border-amber-400/30 text-amber-200",
   };
   return (
     <div className={`px-3 py-2 rounded-lg border ${tones[tone]}`}>
-      <div className="text-[10px] uppercase tracking-wider opacity-80">{label}</div>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider opacity-80">
+        <span>{label}</span>
+        {info && <InfoTip text={info} label={label} />}
+      </div>
       <div className="text-lg font-bold tabular-nums">{value ?? 0}</div>
     </div>
   );

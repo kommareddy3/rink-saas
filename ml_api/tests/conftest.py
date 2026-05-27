@@ -62,3 +62,13 @@ def upload_csv(client, headers, csv_bytes, filename="data.csv"):
         headers=headers,
         files={"file": (filename, csv_bytes, "text/csv")},
     )
+
+
+def post_csv(client, endpoint, headers, csv_bytes, data=None, filename="data.csv"):
+    """Helper: POST a CSV (+ optional form fields) to a tool endpoint."""
+    return client.post(
+        endpoint,
+        headers=headers,
+        files={"file": (filename, csv_bytes, "text/csv")},
+        data=data or {},
+    )

@@ -173,20 +173,28 @@ export default function VRP() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Customers" value={customers.length || "—"} accent="blue" />
+        <KpiCard
+          label="Customers"
+          info="Number of delivery stops to be served (excluding the depot)."
+          value={customers.length || "—"}
+          accent="blue"
+        />
         <KpiCard
           label="Total demand"
+          info="The sum of all customers' demand (e.g. parcels or weight). Compare it to vehicle capacity to see how many vehicles you'll need."
           value={totalDemand || "—"}
           hint={`Vehicle capacity ${vehicleCapacity}`}
           accent="amber"
         />
         <KpiCard
           label="Routes used"
+          info="How many vehicle routes the plan uses. Each route stays within the vehicle capacity you set."
           value={result ? result.routes.length : "—"}
           accent="emerald"
         />
         <KpiCard
           label="Total distance"
+          info="Combined length of all vehicle routes, in the same units as your coordinates. Lower means a more efficient plan."
           value={result ? result.total_distance.toFixed(2) : "—"}
           accent="purple"
         />

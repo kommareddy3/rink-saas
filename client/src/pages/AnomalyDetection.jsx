@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import api from "../api";
 import ReportStudio from "../components/ReportStudio";
+import InfoTip from "../components/InfoTip";
 
 const COLORS = {
   actual: "#60a5fa",
@@ -137,15 +138,27 @@ export default function AnomalyDetection() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Rows analyzed" value={result ? result.rows.toLocaleString() : "—"} accent="blue" />
-        <KpiCard label="Anomalies" value={result ? result.anomalies.toLocaleString() : "—"} accent="red" />
+        <KpiCard
+          label="Rows analyzed"
+          info="How many rows from your file were scored by the detector (after dropping blanks in the value column)."
+          value={result ? result.rows.toLocaleString() : "—"}
+          accent="blue"
+        />
+        <KpiCard
+          label="Anomalies"
+          info="How many rows were flagged as unusual — points that don't fit the pattern of the rest of your data."
+          value={result ? result.anomalies.toLocaleString() : "—"}
+          accent="red"
+        />
         <KpiCard
           label="Anomaly rate"
+          info="Share of rows flagged as anomalies (anomalies ÷ rows analysed). It lands near the expected rate you set with contamination."
           value={result ? `${(result.anomaly_rate * 100).toFixed(2)}%` : "—"}
           accent="amber"
         />
         <KpiCard
           label="Cadence"
+          info="How often your data points occur (daily, weekly, monthly…), inferred from the gaps between dates."
           value={result?.frequency || "—"}
           hint={result?.date_column ? `Date column "${result.date_column}"` : "No date column"}
           accent="emerald"
@@ -177,8 +190,9 @@ export default function AnomalyDetection() {
               className="w-full px-3.5 py-2.5 rounded-xl bg-black/30 text-white placeholder-gray-500 border border-white/10 focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
 
-            <label className="block text-xs uppercase tracking-wider text-gray-300 font-semibold mt-4 mb-1.5">
-              Expected anomaly rate: <span className="text-white">{contamination}%</span>
+            <label className="flex items-center gap-1 text-xs uppercase tracking-wider text-gray-300 font-semibold mt-4 mb-1.5">
+              <span>Expected anomaly rate: <span className="text-white">{contamination}%</span></span>
+              <InfoTip text="The share of rows you expect to be unusual (also called “contamination”). It tunes how aggressively the detector flags points — higher means more rows get flagged." label="What is the expected anomaly rate?" />
             </label>
             <input
               type="range"

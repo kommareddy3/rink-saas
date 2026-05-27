@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import ReportStudio from "../components/ReportStudio";
+import InfoTip from "../components/InfoTip";
 import { csvFilename, exportCSV } from "../utils/csv";
 
 // ---------------------------------------------------------------------------
@@ -222,7 +223,7 @@ function Badge({ children, tone = "blue" }) {
   );
 }
 
-function KpiCard({ label, value, hint, accent, icon, loading }) {
+function KpiCard({ label, value, hint, accent, icon, loading, info }) {
   const accents = {
     blue: "from-blue-500/20 to-blue-500/0 text-blue-300",
     emerald: "from-emerald-500/20 to-emerald-500/0 text-emerald-300",
@@ -230,11 +231,14 @@ function KpiCard({ label, value, hint, accent, icon, loading }) {
     amber: "from-amber-500/20 to-amber-500/0 text-amber-300",
   };
   return (
-    <Card className="p-5 relative overflow-hidden">
-      <div className={`absolute inset-0 bg-gradient-to-br opacity-50 ${accents[accent] || accents.blue}`} />
+    <Card className="p-5 relative">
+      <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br opacity-50 ${accents[accent] || accents.blue}`} />
       <div className="relative flex items-start justify-between">
         <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wider text-gray-400 font-medium">{label}</div>
+          <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-gray-400 font-medium">
+            <span className="truncate">{label}</span>
+            {info && <InfoTip text={info} label={`What is ${label}?`} />}
+          </div>
           <div className="text-3xl font-bold text-white mt-2 tabular-nums truncate">
             {loading ? <Skeleton className="h-9 w-24 mt-1" /> : value}
           </div>
@@ -1014,6 +1018,7 @@ export default function Analytics() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KpiCard
           label="Dataset rows"
+          info="How many data points are in the column you're forecasting, after sorting by date and dropping blanks."
           value={hasData ? actual.length.toLocaleString() : "—"}
           hint={
             hasData
@@ -1030,6 +1035,7 @@ export default function Analytics() {
         />
         <KpiCard
           label="Cadence"
+          info="How often your data points occur (daily, weekly, monthly…). RINK infers it from the typical gap between dates, and uses it to label and space future forecast points."
           value={frequency === "unknown" ? "—" : frequency}
           hint={
             dateColumn
@@ -1048,6 +1054,7 @@ export default function Analytics() {
         />
         <KpiCard
           label="RMSE"
+          info="Root Mean Squared Error — the typical size of the model's prediction error on held-out data, in your column's units. Lower is better; it penalises occasional large misses more heavily than MAE."
           value={metrics ? metrics.rmse.toFixed(4) : "—"}
           hint="Validation root mean-squared error"
           accent="purple"
@@ -1059,6 +1066,7 @@ export default function Analytics() {
         />
         <KpiCard
           label="MAE"
+          info="Mean Absolute Error — the average size of the model's prediction error on held-out data, in your column's units. Lower is better; it's easier to read as “off by about this much on average”."
           value={metrics ? metrics.mae.toFixed(4) : "—"}
           hint="Validation mean absolute error"
           accent="purple"
@@ -1381,8 +1389,9 @@ export default function Analytics() {
                 </svg>
               }
             />
-            <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
-              Horizon
+            <label className="flex items-center gap-1 text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
+              <span>Horizon</span>
+              <InfoTip text="How many future points to forecast, at your data's cadence — e.g. 10 means the next 10 days for daily data, or 10 weeks for weekly data." label="What is Horizon?" />
             </label>
             <PillGroup
               tone="purple"

@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import api from "../api";
 import ReportStudio from "../components/ReportStudio";
+import InfoTip from "../components/InfoTip";
 
 // Visually distinct cluster palette — supports up to 12 clusters.
 const PALETTE = [
@@ -118,21 +119,29 @@ export default function CustomerSegmentation() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Customers" value={result ? result.rows.toLocaleString() : "—"} accent="blue" />
+        <KpiCard
+          label="Customers"
+          info="Number of rows (customers) in your file that were grouped into segments."
+          value={result ? result.rows.toLocaleString() : "—"}
+          accent="blue"
+        />
         <KpiCard
           label="Segments"
+          info="How many distinct groups (clusters) customers were split into. When set to auto, RINK picks the count with the best silhouette score."
           value={result ? result.n_clusters : "—"}
           hint={result?.auto_k ? "Picked by silhouette" : "Manually set"}
           accent="purple"
         />
         <KpiCard
           label="Silhouette"
+          info="A cluster-quality score from −1 to 1. Higher means customers sit close to their own segment and far from others — i.e. the segments are well-separated. Above ~0.5 is strong."
           value={result?.silhouette != null ? result.silhouette.toFixed(3) : "—"}
           accent="emerald"
           hint="Higher = better-separated"
         />
         <KpiCard
           label="Features used"
+          info="How many numeric columns from your file were used to measure similarity and form the segments."
           value={result ? result.features_used.length : "—"}
           accent="amber"
           hint={result?.features_used.slice(0, 2).join(", ") || ""}
@@ -205,10 +214,10 @@ export default function CustomerSegmentation() {
             <Card className="p-6">
               <SectionHeader title="Snapshot" />
               <dl className="text-sm space-y-2">
-                <Row label="K (segments)" value={result.n_clusters} />
-                <Row label="Source" value={result.auto_k ? "Auto" : "Manual"} />
-                <Row label="Silhouette" value={result.silhouette?.toFixed(3) ?? "—"} />
-                <Row label="Inertia" value={result.inertia.toFixed(1)} />
+                <Row label="K (segments)" value={result.n_clusters} info="K is the number of clusters the algorithm forms. “Auto” means RINK tried several values and kept the one with the best silhouette score." />
+                <Row label="Source" value={result.auto_k ? "Auto" : "Manual"} info="Whether RINK chose the number of segments automatically (best silhouette) or you set it by hand." />
+                <Row label="Silhouette" value={result.silhouette?.toFixed(3) ?? "—"} info="Cluster-quality score from −1 to 1; higher means segments are well-separated and internally similar." />
+                <Row label="Inertia" value={result.inertia.toFixed(1)} info="Total within-cluster spread — the sum of squared distances from each customer to its segment's centre. Lower means tighter, more compact segments." />
               </dl>
               <p className="text-[11px] text-gray-500 mt-3">
                 Silhouette is a quality score from −1 to 1. Above 0.3 generally
@@ -330,10 +339,13 @@ export default function CustomerSegmentation() {
   );
 }
 
-function Row({ label, value }) {
+function Row({ label, value, info }) {
   return (
     <div className="flex justify-between text-sm">
-      <dt className="text-gray-400">{label}</dt>
+      <dt className="flex items-center gap-1 text-gray-400">
+        <span>{label}</span>
+        {info && <InfoTip text={info} label={label} />}
+      </dt>
       <dd className="text-white tabular-nums">{value}</dd>
     </div>
   );

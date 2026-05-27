@@ -74,12 +74,14 @@ Express gateway after the user's first successful sign-in. This lets us:
 ### Setup
 
 1. Create a free account at [resend.com](https://resend.com).
-2. Verify a sending domain (e.g. `mail.rinkglobal.com`). Free tier
+2. Verify your sending domain in Resend — either the apex
+   (`rinkglobal.com`) or a sending subdomain (`mail.rinkglobal.com`).
+   Add the DKIM / SPF / Return-Path records they generate. Free tier
    includes 3,000 emails/month, 100/day.
 3. Generate an API key in **API Keys**.
 4. Set these env vars on the Vercel `rink-api` project:
    - `RESEND_API_KEY` — the key from step 3.
-   - `WELCOME_FROM_EMAIL` — e.g. `RINK <hello@mail.rinkglobal.com>`.
+   - `WELCOME_FROM_EMAIL` — e.g. `RINK <hello@rinkglobal.com>`.
 
 ### Flow
 

@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import api from "../api";
 import ReportStudio from "../components/ReportStudio";
+import InfoTip from "../components/InfoTip";
 
 const COLORS = {
   control: "#60a5fa",
@@ -181,6 +182,7 @@ export default function ABTest() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KpiCard
           label="Verdict"
+          info="Whether the difference between the two groups is statistically significant at your chosen α — i.e. unlikely to be due to chance. “Not yet” means you don't have enough evidence."
           value={
             !result ? "—" : result.significant ? "Significant" : "Not yet"
           }
@@ -189,12 +191,14 @@ export default function ABTest() {
         />
         <KpiCard
           label="p-value"
+          info="The probability of seeing a difference this large if the two groups were really the same. Smaller = stronger evidence. Below α (e.g. 0.05) is called significant."
           value={result ? fmt(result.p_value, 4) : "—"}
           accent="purple"
           hint={result?.test === "welch-t" ? "Welch's t-test" : result?.test === "two-proportion-z" ? "Two-proportion z-test" : ""}
         />
         <KpiCard
           label="Absolute lift"
+          info="The raw difference between variant and control (variant − control), with a confidence interval. For conversion tests it's in percentage points."
           value={
             !result
               ? "—"
@@ -207,6 +211,7 @@ export default function ABTest() {
         />
         <KpiCard
           label="Relative lift"
+          info="The percentage change of the variant over the control. E.g. +10% means the variant is 10% higher than control, relative to control."
           value={result?.diff_relative != null ? fmtPct(result.diff_relative, 1) : "—"}
           accent="emerald"
           hint="Variant vs Control"
@@ -436,13 +441,13 @@ export default function ABTest() {
                 <ArmCard arm={result.variant} mode={mode} tone="purple" />
               </div>
               <dl className="grid grid-cols-2 gap-2 text-sm">
-                <Stat label="Test" value={result.test === "welch-t" ? "Welch's t-test" : "Two-proportion z-test"} />
-                <Stat label="α (alpha)" value={result.alpha} />
-                <Stat label="Test statistic" value={fmt(result.test_statistic, 3)} />
-                <Stat label="p-value" value={fmt(result.p_value, 4)} />
-                {result.df != null && <Stat label="Degrees of freedom" value={fmt(result.df, 2)} />}
+                <Stat label="Test" value={result.test === "welch-t" ? "Welch's t-test" : "Two-proportion z-test"} info="Which statistical test was used: Welch's t-test for continuous values (e.g. revenue per user), or a two-proportion z-test for conversion rates." />
+                <Stat label="α (alpha)" value={result.alpha} info="Your significance threshold — the false-positive rate you'll tolerate. A p-value below α is called statistically significant. 0.05 is common." />
+                <Stat label="Test statistic" value={fmt(result.test_statistic, 3)} info="The standardized size of the difference (a t or z score). The further from 0, the stronger the signal; the p-value is derived from it." />
+                <Stat label="p-value" value={fmt(result.p_value, 4)} info="Probability of a difference this large if the groups were truly identical. Below α suggests a real effect." />
+                {result.df != null && <Stat label="Degrees of freedom" value={fmt(result.df, 2)} info="A parameter of the t-distribution used to compute the p-value; it grows with your sample size." />}
                 {result.required_sample_size_per_arm != null && (
-                  <Stat label="Required n / arm @ 80% power" value={result.required_sample_size_per_arm.toLocaleString()} />
+                  <Stat label="Required n / arm @ 80% power" value={result.required_sample_size_per_arm.toLocaleString()} info="Roughly how many samples you'd need in each group to detect an effect this size 80% of the time at your α — a guide to whether your test is big enough." />
                 )}
               </dl>
 
@@ -500,10 +505,13 @@ function ArmCard({ arm, mode, tone }) {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, info }) {
   return (
     <div className="flex justify-between gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5">
-      <dt className="text-xs text-gray-400">{label}</dt>
+      <dt className="flex items-center gap-1 text-xs text-gray-400">
+        <span>{label}</span>
+        {info && <InfoTip text={info} label={label} />}
+      </dt>
       <dd className="text-sm text-white tabular-nums">{value}</dd>
     </div>
   );

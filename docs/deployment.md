@@ -54,7 +54,9 @@ Plus:
 | `ALLOWED_ORIGINS`              | `https://rinkglobal.com,https://www.rinkglobal.com`        |
 | `GATEWAY_SECRET`               | the **same** value as on Render                            |
 | `RESEND_API_KEY`               | (optional) Resend API key for welcome emails               |
-| `WELCOME_FROM_EMAIL`           | (optional) e.g. `RINK <hello@mail.rinkglobal.com>`         |
+| `WELCOME_FROM_EMAIL`           | (optional) e.g. `RINK <hello@rinkglobal.com>`              |
+| `CONTACT_FROM_EMAIL`           | (optional) From: address for /api/contact (defaults to `WELCOME_FROM_EMAIL`) |
+| `TEAM_EMAIL`                   | (optional) where contact-form submissions are delivered — default `hello@rinkglobal.com` |
 | `PASSKEY_RP_NAME`              | `RINK Global Services`                                     |
 | `PASSKEY_RP_ID`                | `rinkglobal.com` (apex domain, no protocol)                |
 | `PASSKEY_RP_ORIGIN`            | `https://rinkglobal.com`                                   |

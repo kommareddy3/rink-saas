@@ -149,20 +149,28 @@ export default function TSP() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Locations" value={points.length || "—"} accent="blue" />
+        <KpiCard
+          label="Locations"
+          info="Number of stops in the route, including the start point."
+          value={points.length || "—"}
+          accent="blue"
+        />
         <KpiCard
           label="Total distance"
+          info="Total length of the optimized route, in the same units as your coordinates (straight-line distance between stops)."
           value={result ? result.total_distance.toFixed(2) : "—"}
           accent="emerald"
         />
         <KpiCard
           label="Improvement"
+          info="How much shorter the optimized route is versus the simple nearest-neighbour starting tour. Higher is better."
           value={result ? `${(((result.improved_from - result.total_distance) / result.improved_from) * 100).toFixed(1)}%` : "—"}
           hint="vs nearest-neighbor start"
           accent="purple"
         />
         <KpiCard
           label="2-opt iterations"
+          info="How many local-search passes the optimizer made, untangling crossings to shorten the route. More passes = more refinement."
           value={result?.iterations ?? "—"}
           accent="amber"
         />

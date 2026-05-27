@@ -155,8 +155,9 @@ your active session.
 
 ## Reporting a vulnerability
 
-Found a security issue? Please report it privately via
-[rinkglobal.com/contact](https://rinkglobal.com/contact) rather than
+Found a security issue? Please report it privately to
+[admin@rinkglobal.com](mailto:admin@rinkglobal.com) (or via
+[rinkglobal.com/contact](https://rinkglobal.com/contact)) rather than
 opening a public issue. We aim to acknowledge reports quickly and will
 keep you updated on the fix.
 

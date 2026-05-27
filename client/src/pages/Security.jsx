@@ -175,7 +175,7 @@ export default function Security() {
           }
         />
         <p className="text-sm text-gray-200 leading-relaxed">
-          Email <a href="mailto:security@rinkglobal.com" className="text-blue-300 hover:text-blue-200">security@rinkglobal.com</a>
+          Email <a href="mailto:admin@rinkglobal.com" className="text-blue-300 hover:text-blue-200">admin@rinkglobal.com</a>
           {" "}with reproduction steps and impact. We commit to:
         </p>
         <ul className="text-sm text-gray-200 mt-3 space-y-1.5 list-disc pl-5">

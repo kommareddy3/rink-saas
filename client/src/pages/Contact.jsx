@@ -62,8 +62,8 @@ const QUICK_OPTIONS = [
 const DIRECT_EMAILS = [
   { label: "General",  email: "hello@rinkglobal.com" },
   { label: "Support",  email: "support@rinkglobal.com" },
-  { label: "Sales",    email: "sales@rinkglobal.com" },
-  { label: "Security", email: "security@rinkglobal.com" },
+  { label: "Billing",  email: "billing@rinkglobal.com" },
+  { label: "Security & admin", email: "admin@rinkglobal.com" },
 ];
 
 // ---------------------------------------------------------------------------

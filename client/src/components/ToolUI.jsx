@@ -6,6 +6,7 @@
  * focused on its own logic.
  */
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import InfoTip from "./InfoTip";
 
 // ---------------------------------------------------------------------------
 // Toast system
@@ -96,7 +97,7 @@ export function SectionHeader({ icon, title, subtitle, action }) {
   );
 }
 
-export function KpiCard({ label, value, hint, accent = "blue", icon, loading }) {
+export function KpiCard({ label, value, hint, accent = "blue", icon, loading, info }) {
   const accents = {
     blue: "from-blue-500/20 to-blue-500/0 text-blue-300",
     emerald: "from-emerald-500/20 to-emerald-500/0 text-emerald-300",
@@ -105,11 +106,14 @@ export function KpiCard({ label, value, hint, accent = "blue", icon, loading }) 
     red: "from-red-500/20 to-red-500/0 text-red-300",
   };
   return (
-    <Card className="p-5 relative overflow-hidden">
-      <div className={`absolute inset-0 bg-gradient-to-br opacity-50 ${accents[accent] || accents.blue}`} />
+    <Card className="p-5 relative">
+      <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br opacity-50 ${accents[accent] || accents.blue}`} />
       <div className="relative flex items-start justify-between">
         <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wider text-gray-400 font-medium">{label}</div>
+          <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-gray-400 font-medium">
+            <span className="truncate">{label}</span>
+            {info && <InfoTip text={info} label={`What is ${label}?`} />}
+          </div>
           <div className="text-3xl font-bold text-white mt-2 tabular-nums truncate">
             {loading ? <Skeleton className="h-9 w-24 mt-1" /> : value}
           </div>
