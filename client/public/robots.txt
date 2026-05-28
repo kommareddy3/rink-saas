@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Crawlers should respect the canonical host
+Sitemap: https://rinkglobal.com/sitemap.xml
