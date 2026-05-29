@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import AIAssistant from "./components/AIAssistant";
+import ScrollToTop from "./components/ScrollToTop";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Analytics from "./pages/Analytics";
@@ -36,6 +37,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <div className="min-h-screen flex flex-col bg-gradient-to-br from-black via-gray-900 to-blue-900 text-white">
           <Navbar />
           <main className="flex-1">
