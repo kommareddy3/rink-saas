@@ -47,11 +47,35 @@ const TEAM_EMAIL = process.env.TEAM_EMAIL || "hello@rinkglobal.com";
 const APP_URL = process.env.APP_URL || "https://rinkglobal.com";
 const DOCS_URL = process.env.DOCS_URL || "https://docs.rinkglobal.com";
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
-  "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+// Parse the env var, then auto-expand each origin to ALSO accept the
+// apex<->www counterpart so a misconfigured env var (or a deploy on the
+// "other" canonical) never bricks the API with a CORS rejection.
+function expandOrigins(list) {
+  const out = new Set(list);
+  for (const origin of list) {
+    try {
+      const u = new URL(origin);
+      const host = u.hostname;
+      if (host.startsWith("www.")) {
+        const apex = host.slice(4);
+        out.add(`${u.protocol}//${apex}${u.port ? ":" + u.port : ""}`);
+      } else if (host && !host.startsWith("localhost") && host.includes(".")) {
+        out.add(`${u.protocol}//www.${host}${u.port ? ":" + u.port : ""}`);
+      }
+    } catch {
+      /* skip bad URLs */
+    }
+  }
+  return [...out];
+}
+
+const ALLOWED_ORIGINS = expandOrigins(
+  (process.env.ALLOWED_ORIGINS ||
+    "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -84,6 +108,11 @@ app.use(
       // Allow same-origin / curl (no Origin header) and explicitly listed origins.
       if (!origin) return cb(null, true);
       if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      // Log to Vercel function logs so the rejected origin is visible
+      // (otherwise CORS rejections are silent from the operator's side).
+      console.warn(
+        `[cors] rejected origin: ${origin} (allow-list: ${ALLOWED_ORIGINS.join(", ")})`
+      );
       return cb(new Error(`Origin ${origin} not allowed by CORS`));
     },
     credentials: true,

@@ -2018,3 +2018,4 @@ def vrp_solve(request: Request, body: VRPRequest) -> VRPResponse:
         vehicle_capacity=body.vehicle_capacity,
         method="clarke-wright + per-route 2-opt",
     )
+
