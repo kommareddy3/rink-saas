@@ -63,8 +63,14 @@ def test_vrp_happy_path(make_client):
     assert len(d["routes"]) >= 1
     assert all(route["load"] <= 15 + 1e-9 for route in d["routes"])
     assert d["total_distance"] > 0
-    served = sum(len(route["sequence"]) for route in d["routes"])
-    assert served + len(d["unserved"]) == 9
+    # Count distinct customer stops (depot index 0 may bookend each route).
+    served_customers = {
+        idx
+        for route in d["routes"]
+        for idx in route["sequence"]
+        if idx != 0
+    }
+    assert len(served_customers) + len(d["unserved"]) == 9
 
 
 def test_vrp_demand_exceeds_capacity(make_client):

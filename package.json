@@ -4,21 +4,21 @@
   "private": true,
   "description": "RINK Global Services — API gateway (Vercel deploy root). Frontend lives in client/, ML service in ml_api/.",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
     "start": "node server/server.js",
     "dev": "node server/server.js"
   },
   "dependencies": {
-    "@simplewebauthn/server": "^10.0.1",
-    "@supabase/supabase-js": "^2.45.4",
-    "axios": "^1.7.7",
+    "@simplewebauthn/server": "^13.1.0",
+    "@supabase/supabase-js": "^2.49.4",
+    "axios": "^1.8.4",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.21.0",
+    "express": "^5.0.1",
     "form-data": "^4.0.1",
-    "groq-sdk": "^0.7.0",
-    "multer": "^1.4.5-lts.1"
+    "groq-sdk": "^0.20.0",
+    "multer": "^2.0.0"
   }
 }

@@ -7,3 +7,8 @@ __pycache__/
 data/
 uploaded.csv
 *.sqlite3
+
+# Virtualenvs — always develop inside one (see README.md).
+.venv/
+venv/
+env/

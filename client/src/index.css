@@ -1,3 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 — CSS-first import. Keeps the existing JS config so all the
+   project's tailwind.config.js extensions and content paths still apply. */
+@import "tailwindcss";
+@config "../tailwind.config.js";
