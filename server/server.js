@@ -102,22 +102,32 @@ if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "your-api-key-here"
 // Middleware
 // ---------------------------------------------------------------------------
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // Allow same-origin / curl (no Origin header) and explicitly listed origins.
-      if (!origin) return cb(null, true);
-      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      // Log to Vercel function logs so the rejected origin is visible
-      // (otherwise CORS rejections are silent from the operator's side).
-      console.warn(
-        `[cors] rejected origin: ${origin} (allow-list: ${ALLOWED_ORIGINS.join(", ")})`
-      );
-      return cb(new Error(`Origin ${origin} not allowed by CORS`));
-    },
-    credentials: true,
-  })
-);
+// CORS — must run before any other middleware that might throw, so that
+// preflight responses (OPTIONS) always carry the right headers.
+const corsOptions = {
+  origin: (origin, cb) => {
+    // Same-origin / curl have no Origin header — always allow.
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    // Surface rejections to the Vercel function logs.
+    console.warn(
+      `[cors] rejected origin: ${origin} (allow-list: ${ALLOWED_ORIGINS.join(", ")})`
+    );
+    // IMPORTANT: do NOT throw an Error here — that bypasses the cors
+    // middleware and lets Express's error handler return a 500 with no
+    // CORS headers, which the browser surfaces as the confusing
+    // "No 'Access-Control-Allow-Origin' header" message. Returning
+    // (null, false) just omits the Allow-Origin header (correct), and
+    // the browser still blocks (correct), but no 500 confuses the dev.
+    return cb(null, false);
+  },
+  credentials: true,
+};
+// `app.use(cors())` already handles OPTIONS preflights for every route in
+// Express 5 — do NOT add `app.options("*", ...)` here. Express 5's
+// path-to-regexp v8 rejects the bare "*" pattern and crashes the function
+// at cold start (FUNCTION_INVOCATION_FAILED on Vercel).
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -712,10 +722,16 @@ app.post("/api/report/enrich", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/abtest/:mode(continuous|conversion)", requireAuth, async (req, res) => {
+// Express 5 / path-to-regexp v8 dropped `:param(regex)` constraints, so we
+// validate the mode in the handler instead.
+app.post("/api/abtest/:mode", requireAuth, async (req, res) => {
+  const { mode } = req.params;
+  if (mode !== "continuous" && mode !== "conversion") {
+    return res.status(404).json({ error: `Unknown abtest mode: ${mode}` });
+  }
   try {
     const r = await axios.post(
-      `${ML_API_URL}/abtest/${req.params.mode}`,
+      `${ML_API_URL}/abtest/${mode}`,
       req.body,
       { headers: mlHeaders(req), timeout: 30_000 }
     );
