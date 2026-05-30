@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/rink-logo.png";
@@ -246,6 +246,148 @@ const FAQ = [
 ];
 
 // ---------------------------------------------------------------------------
+// Interactive Explorer — tabbed showcase used on the home page.
+// ---------------------------------------------------------------------------
+
+const EXPLORER_TABS = [
+  {
+    id: "cloud",
+    label: "Cloud migrations",
+    intro: "Move workloads to AWS, Azure, or GCP without breaking what's already working.",
+    points: [
+      "Landing-zone design with cost guard-rails",
+      "Migration waves planned around business calendars",
+      "Modernise selectively — containers, serverless, managed databases",
+      "Hand-off runbooks so your team owns it after go-live",
+    ],
+    cta: { to: "/contact?reason=sales", label: "Plan a migration" },
+  },
+  {
+    id: "security",
+    label: "Cybersecurity",
+    intro: "From hardened landing zones to 24×7 SOC retainers — security as the baseline, not an upsell.",
+    points: [
+      "Identity-first architectures (Entra, AWS SSO, Okta)",
+      "Continuous controls for SOC2 / HIPAA / ISO 27001",
+      "Detection-as-code pipelines and IR retainers",
+      "Threat-modeling workshops before the first sprint",
+    ],
+    cta: { to: "/contact?reason=security", label: "Talk to security" },
+  },
+  {
+    id: "managed",
+    label: "Managed services",
+    intro: "Outcome-based ops with monthly KPI reporting — never minutes-billed body-shopping.",
+    points: [
+      "24×7 monitoring, patching, backup, and DR",
+      "L1–L3 helpdesk with named pods, not call-centre roulette",
+      "FinOps and cost optimisation built into every run-book",
+      "Quarterly account reviews with the senior practice lead",
+    ],
+    cta: { to: "/contact?reason=sales", label: "Hand us the ops" },
+  },
+  {
+    id: "data",
+    label: "Data analytics & AI",
+    intro: "Data engineering, MLOps, and our own SaaS — RINK Data Analytics — for short time-to-value.",
+    points: [
+      "Snowflake / Databricks / Postgres modern stacks",
+      "MLOps with reproducible feature stores and CI",
+      "Optional: ship straight to RINK Data Analytics for forecasting, anomalies, churn",
+      "Privacy-aware pipelines with encryption at rest from day one",
+    ],
+    cta: { to: "/analytics", label: "Open RINK Data Analytics" },
+  },
+  {
+    id: "staffing",
+    label: "Staff augmentation",
+    intro: "Senior C2C consultants or W2 placements — vetted, code-reviewed, and reference-checked.",
+    points: [
+      "Shortlists within 24–48 hours for common stacks",
+      "Right-to-represent stays clean — vendor-neutral by policy",
+      "C2C through your LLC OR W2 on our payroll",
+      "US, Canada, and offshore delivery options",
+    ],
+    cta: { to: "/contact?reason=sales", label: "Send a JD" },
+  },
+];
+
+function Explorer() {
+  const [active, setActive] = useState(EXPLORER_TABS[0].id);
+  const tab = EXPLORER_TABS.find((t) => t.id === active);
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur p-2 sm:p-3">
+      {/* Tab strip */}
+      <div className="flex flex-wrap gap-1 p-1 rounded-2xl bg-black/30 border border-white/5">
+        {EXPLORER_TABS.map((t) => {
+          const on = t.id === active;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActive(t.id)}
+              aria-pressed={on}
+              className={`flex-1 min-w-[140px] px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                on
+                  ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/20"
+                  : "text-gray-300 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Panel */}
+      <div className="p-6 sm:p-10 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
+        <div>
+          <h3 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{tab.intro}</h3>
+          <ul className="mt-6 space-y-3">
+            {tab.points.map((p) => (
+              <li key={p} className="flex items-start gap-3 text-sm text-gray-200">
+                <span className="mt-1 w-5 h-5 rounded-md bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center flex-none">
+                  <svg className="w-3 h-3 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+                <span className="leading-relaxed">{p}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            to={tab.cta.to}
+            className="mt-7 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition"
+          >
+            {tab.cta.label}
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </Link>
+        </div>
+        {/* Side panel — quick numeric proof */}
+        <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+          {[
+            { v: "< 48 h", l: "first shortlist" },
+            { v: "100%", l: "vendor-neutral" },
+            { v: "US + offshore", l: "delivery footprint" },
+            { v: "Own SaaS", l: "RINK Data Analytics" },
+          ].map((s) => (
+            <div
+              key={s.l}
+              className="px-5 py-4 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-white/10 backdrop-blur"
+            >
+              <div className="text-xl font-bold text-white tabular-nums">{s.v}</div>
+              <div className="text-[10px] uppercase tracking-widest text-gray-400 mt-1">{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -410,6 +552,23 @@ export default function Home() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* ============== INTERACTIVE EXPLORER ============== */}
+      <section id="explore" className="px-4 sm:px-6 lg:px-10 py-24 scroll-mt-24">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <div className="text-xs uppercase tracking-widest text-blue-300 font-semibold mb-3">
+              Explore RINK
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-bold">Click a practice. See what shipping looks like.</h2>
+            <p className="text-gray-400 mt-4 text-base">
+              Five tabs, one engagement framework. The same operator-grade team
+              behind every door.
+            </p>
+          </div>
+          <Explorer />
         </div>
       </section>
 

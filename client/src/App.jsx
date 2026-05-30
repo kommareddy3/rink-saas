@@ -16,6 +16,8 @@ import TSP from "./pages/TSP";
 import VRP from "./pages/VRP";
 import Contact from "./pages/Contact";
 import Profile from "./pages/Profile";
+import About from "./pages/About";
+import Careers from "./pages/Careers";
 import Changelog from "./pages/Changelog";
 import Security from "./pages/Security";
 import Cookies from "./pages/Cookies";
@@ -109,6 +111,8 @@ export default function App() {
                 }
               />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/careers" element={<Careers />} />
               <Route path="/changelog" element={<Changelog />} />
               <Route path="/security" element={<Security />} />
               <Route path="/cookies" element={<Cookies />} />
