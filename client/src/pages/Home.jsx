@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/rink-logo.png";
+import { ANALYTICS } from "../links";
 
 // ---------------------------------------------------------------------------
 // Plan A — "Corporate Trust" light palette, adapted for founder-stage RINK.
@@ -43,7 +44,8 @@ const SERVICES = [
     tagline: "Backed by our own SaaS",
     description: "Data engineering, MLOps, dashboards, forecasting. Optionally delivered on RINK Data Analytics.",
     accent: "purple",
-    href: "/analytics",
+    href: ANALYTICS.home,
+    external: true,
     badge: "Product",
   },
   {
@@ -113,7 +115,7 @@ const FAQ = [
   { q: "How fast can you fill a role?", a: "For common stacks (AWS, Azure, .NET, Java, React, Python): a vetted shortlist within 48 hours. For niche skills (FedRAMP, OT/SCADA, specific industry experience): 72 hours. We don't believe in week-long shortlists — by then your client has moved on." },
   { q: "Do you support remote, hybrid, and on-site?", a: "All three. Our delivery footprint covers US, Canada, and an offshore centre for follow-the-sun coverage. We default to remote-first but match whatever your client's policy requires." },
   { q: "We already have a prime-vendor MSA. Can you sub through them?", a: "Yes — we work as a tier-2 supplier under prime-vendor programs. Share the prime's onboarding portal and we'll have paperwork done within a week." },
-  { q: "What's RINK Data Analytics, and is it relevant to me?", a: "It's our own SaaS — a forecasting, anomaly-detection, churn, segmentation, A/B-test, and route-optimisation workspace. It exists for two reasons: (1) it sharpens us on what production really means, and (2) data-engagement clients get the platform included. Try it free at /analytics." },
+  { q: "What's RINK Data Analytics, and is it relevant to me?", a: "It's our own SaaS — a forecasting, anomaly-detection, churn, segmentation, A/B-test, and route-optimisation workspace. It exists for two reasons: (1) it sharpens us on what production really means, and (2) data-engagement clients get the platform included. Try it free at analytics.rinkglobal.com." },
 ];
 
 // ---------------------------------------------------------------------------
@@ -124,7 +126,7 @@ const EXPLORER_TABS = [
   { id: "cloud", label: "Cloud migrations", intro: "Move workloads to AWS, Azure, or GCP without breaking what's already working.", points: ["Landing-zone design with cost guard-rails", "Migration waves planned around business calendars", "Containers, serverless, or managed databases where it pays off", "Hand-off runbooks so your team owns it after go-live"], cta: { to: "/contact?reason=sales", label: "Plan a migration" } },
   { id: "security", label: "Cybersecurity", intro: "From hardened landing zones to 24×7 SOC retainers — security as the baseline, not an upsell.", points: ["Identity-first architectures (Entra, AWS SSO, Okta)", "Continuous controls for SOC2 / HIPAA / ISO 27001", "Detection-as-code pipelines and IR retainers", "Threat-modeling workshops before the first sprint"], cta: { to: "/contact?reason=security", label: "Talk to security" } },
   { id: "managed", label: "Managed services", intro: "Outcome-based ops with monthly KPI reporting — never minutes-billed body-shopping.", points: ["24×7 monitoring, patching, backup, and DR", "L1–L3 helpdesk with named pods", "FinOps and cost optimisation built into every runbook", "Quarterly account reviews with the senior practice lead"], cta: { to: "/contact?reason=sales", label: "Hand us the ops" } },
-  { id: "data", label: "Data analytics & AI", intro: "Data engineering, MLOps, and our own SaaS — RINK Data Analytics — for short time-to-value.", points: ["Snowflake / Databricks / Postgres modern stacks", "MLOps with reproducible feature stores and CI", "Optional: ship straight to RINK Data Analytics", "Privacy-aware pipelines with encryption at rest from day one"], cta: { to: "/analytics", label: "Open RINK Data Analytics" } },
+  { id: "data", label: "Data analytics & AI", intro: "Data engineering, MLOps, and our own SaaS — RINK Data Analytics — for short time-to-value.", points: ["Snowflake / Databricks / Postgres modern stacks", "MLOps with reproducible feature stores and CI", "Optional: ship straight to RINK Data Analytics", "Privacy-aware pipelines with encryption at rest from day one"], cta: { to: ANALYTICS.home, external: true, label: "Open RINK Data Analytics" } },
   { id: "staffing", label: "Staff augmentation", intro: "Senior C2C consultants or W2 placements — vetted, code-reviewed, and reference-checked.", points: ["Shortlists within 48 hours for common stacks", "Right-to-represent stays clean — vendor-neutral by policy", "C2C through your LLC OR W2 on our payroll", "US, Canada, and offshore delivery options"], cta: { to: "/contact?reason=sales", label: "Send a JD" } },
 ];
 
@@ -168,15 +170,29 @@ function Explorer() {
               </li>
             ))}
           </ul>
-          <Link
-            to={tab.cta.to}
-            className="mt-7 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition"
-          >
-            {tab.cta.label}
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </Link>
+          {tab.cta.external ? (
+            <a
+              href={tab.cta.to}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-7 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition"
+            >
+              {tab.cta.label}
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </a>
+          ) : (
+            <Link
+              to={tab.cta.to}
+              className="mt-7 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition"
+            >
+              {tab.cta.label}
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </Link>
+          )}
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
           {[
@@ -221,7 +237,7 @@ export default function Home() {
               RINK Global Services helps <b>vendors</b> and <b>end clients</b> ship cloud,
               infrastructure, cybersecurity, and data programs. C2C and W2 talent on tap,
               fixed-bid projects, 24×7 managed services — and we operate our own
-              production SaaS, <Link to="/analytics" className="text-blue-700 hover:text-blue-800 underline decoration-blue-200 underline-offset-4">RINK Data Analytics</Link>, as proof we actually ship.
+              production SaaS, <a href={ANALYTICS.home} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 underline decoration-blue-200 underline-offset-4">RINK Data Analytics</a>, as proof we actually ship.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
@@ -233,12 +249,14 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </Link>
-              <Link
-                to={user ? "/analytics" : "/auth?mode=register"}
+              <a
+                href={user ? ANALYTICS.workspace : ANALYTICS.signUp}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium text-slate-900 bg-white ring-1 ring-slate-200 hover:bg-slate-50 transition"
               >
                 {user ? "Open RINK Data Analytics" : "Try RINK Data Analytics (free)"}
-              </Link>
+              </a>
             </div>
 
             {/* Trust micro-strip — real signals only */}
@@ -326,9 +344,21 @@ export default function Home() {
                 </>
               );
               return s.href ? (
-                <Link key={s.name} to={s.href} className="group p-6 rounded-2xl bg-white ring-1 ring-slate-200 hover:shadow-lg hover:-translate-y-0.5 transition">
-                  {inner}
-                </Link>
+                s.external ? (
+                  <a
+                    key={s.name}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group p-6 rounded-2xl bg-white ring-1 ring-slate-200 hover:shadow-lg hover:-translate-y-0.5 transition"
+                  >
+                    {inner}
+                  </a>
+                ) : (
+                  <Link key={s.name} to={s.href} className="group p-6 rounded-2xl bg-white ring-1 ring-slate-200 hover:shadow-lg hover:-translate-y-0.5 transition">
+                    {inner}
+                  </Link>
+                )
               ) : (
                 <div key={s.name} className="p-6 rounded-2xl bg-white ring-1 ring-slate-200 hover:shadow-md transition">
                   {inner}
@@ -406,12 +436,14 @@ export default function Home() {
                   Data-engagement clients get the platform included.
                 </p>
                 <div className="mt-7 flex flex-wrap gap-3">
-                  <Link
-                    to={user ? "/analytics" : "/auth?mode=register"}
+                  <a
+                    href={user ? ANALYTICS.workspace : ANALYTICS.signUp}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md shadow-blue-500/20 transition"
                   >
                     {user ? "Open workspace" : "Try it free"}
-                  </Link>
+                  </a>
                   <a
                     href="https://docs.rinkglobal.com"
                     target="_blank"

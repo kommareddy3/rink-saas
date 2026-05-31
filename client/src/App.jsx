@@ -1,65 +1,39 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import AIAssistant from "./components/AIAssistant";
 import ScrollToTop from "./components/ScrollToTop";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ANALYTICS } from "./links";
+
 import Home from "./pages/Home";
-import Auth from "./pages/Auth";
-import Analytics from "./pages/Analytics";
-import AnomalyDetection from "./pages/AnomalyDetection";
-import ChurnPrediction from "./pages/ChurnPrediction";
-import CustomerSegmentation from "./pages/CustomerSegmentation";
-import ABTest from "./pages/ABTest";
-import TSP from "./pages/TSP";
-import VRP from "./pages/VRP";
-import Contact from "./pages/Contact";
-import Profile from "./pages/Profile";
 import About from "./pages/About";
 import Careers from "./pages/Careers";
+import Contact from "./pages/Contact";
 import Changelog from "./pages/Changelog";
 import Security from "./pages/Security";
 import Cookies from "./pages/Cookies";
 import DPA from "./pages/DPA";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
-import ProtectedRoute from "./components/ProtectedRoute";
-import { AuthProvider } from "./contexts/AuthContext";
 
-// Floating AI assistant, available everywhere except the sign-in / sign-up
-// page so users can ask for help without leaving whatever they're doing.
+// Floating AI assistant — every marketing page.
 function GlobalAssistant() {
-  const { pathname } = useLocation();
-  if (pathname.startsWith("/auth")) return null;
   return <AIAssistant />;
 }
 
-// Marketing pages use a light, corporate palette. The signed-in workspace
-// keeps the existing dark "tool" aesthetic.
-function isAppRoute(pathname) {
-  return (
-    pathname.startsWith("/auth") ||
-    pathname.startsWith("/analytics") ||
-    pathname.startsWith("/tools") ||
-    pathname.startsWith("/profile")
-  );
-}
-
-function ThemedShell({ children }) {
-  const { pathname } = useLocation();
-  const dark = isAppRoute(pathname);
-  return (
-    <div
-      className={
-        dark
-          ? "min-h-screen flex flex-col bg-gradient-to-br from-black via-gray-900 to-blue-900 text-white"
-          : "min-h-screen flex flex-col bg-white text-slate-900"
-      }
-    >
-      {children}
-    </div>
-  );
+// The product surface (`/analytics`, `/auth`, `/tools/*`, `/profile`) lives
+// in the separate analytics/ project deployed at analytics.rinkglobal.com.
+// If someone hits one of those old URLs on the marketing site (e.g. an old
+// bookmark), bounce them to the canonical product URL.
+function RedirectToAnalytics() {
+  useEffect(() => {
+    const target = `${ANALYTICS.home}${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.location.replace(target);
+  }, []);
+  return null;
 }
 
 export default function App() {
@@ -67,90 +41,32 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <ScrollToTop />
-        <ThemedShell>
+        <div className="min-h-screen flex flex-col bg-white text-slate-900">
           <Navbar />
           <main className="flex-1">
             <Routes>
+              {/* Marketing surface */}
               <Route path="/" element={<Home />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route
-                path="/analytics"
-                element={
-                  <ProtectedRoute>
-                    <Analytics />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tools/anomaly"
-                element={
-                  <ProtectedRoute>
-                    <AnomalyDetection />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tools/churn"
-                element={
-                  <ProtectedRoute>
-                    <ChurnPrediction />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tools/segmentation"
-                element={
-                  <ProtectedRoute>
-                    <CustomerSegmentation />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tools/abtest"
-                element={
-                  <ProtectedRoute>
-                    <ABTest />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tools/tsp"
-                element={
-                  <ProtectedRoute>
-                    <TSP />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tools/vrp"
-                element={
-                  <ProtectedRoute>
-                    <VRP />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <Profile />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/contact" element={<Contact />} />
               <Route path="/about" element={<About />} />
               <Route path="/careers" element={<Careers />} />
+              <Route path="/contact" element={<Contact />} />
               <Route path="/changelog" element={<Changelog />} />
               <Route path="/security" element={<Security />} />
               <Route path="/cookies" element={<Cookies />} />
               <Route path="/dpa" element={<DPA />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
+
+              {/* Legacy / cross-app paths — bounce to the SaaS deployment. */}
+              <Route path="/auth" element={<RedirectToAnalytics />} />
+              <Route path="/analytics" element={<RedirectToAnalytics />} />
+              <Route path="/tools/*" element={<RedirectToAnalytics />} />
+              <Route path="/profile" element={<RedirectToAnalytics />} />
             </Routes>
           </main>
           <Footer />
           <GlobalAssistant />
-        </ThemedShell>
+        </div>
       </BrowserRouter>
     </AuthProvider>
   );

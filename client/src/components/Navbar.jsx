@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/rink-logo.png";
+import { ANALYTICS } from "../links";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -16,7 +17,7 @@ const WHAT_WE_DO = {
     { label: "IT Infrastructure", to: "/#services", hint: "Networks · hybrid · virtualisation" },
     { label: "Cybersecurity", to: "/#services", hint: "Zero-trust · IAM · SOC" },
     { label: "Managed Services", to: "/#services", hint: "24×7 ops & support" },
-    { label: "Data Analytics & AI", to: "/analytics", hint: "Our own SaaS — RINK Data Analytics", badge: "Product" },
+    { label: "Data Analytics & AI", href: ANALYTICS.home, external: true, hint: "Our own SaaS — RINK Data Analytics", badge: "Product" },
     { label: "IT Staff Augmentation", to: "/#how-we-engage", hint: "C2C and W2 talent" },
   ],
   Industries: [
@@ -263,12 +264,14 @@ export default function Navbar() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <Link
-                  to="/analytics"
+                <a
+                  href={ANALYTICS.workspace}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-blue-100 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-400/30"
                 >
                   Workspace
-                </Link>
+                </a>
                 <UserMenu
                   user={user}
                   displayName={displayName}
@@ -280,12 +283,14 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Link
-                  to="/auth?mode=login"
+                <a
+                  href={ANALYTICS.signIn}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className={`hidden md:inline-flex px-3 py-2 rounded-lg text-sm ${t.signInLink}`}
                 >
                   Sign in
-                </Link>
+                </a>
                 <Link
                   to="/contact?reason=sales"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-md shadow-blue-500/20"
@@ -338,15 +343,17 @@ export default function Navbar() {
                   Our own SaaS. How forecasting, anomaly detection, segmentation, and routing
                   fit into client engagements.
                 </p>
-                <Link
-                  to="/analytics"
+                <a
+                  href={ANALYTICS.workspace}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className={`mt-3 inline-flex items-center gap-1.5 text-sm font-medium ${dark ? "text-blue-300 hover:text-blue-200" : "text-blue-700 hover:text-blue-800"}`}
                 >
                   Try the workspace
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
-                </Link>
+                </a>
               </div>
             </div>
           </MegaPanel>
@@ -496,12 +503,22 @@ function UserMenu({ user, displayName, open, setOpen, onSignOut, menuRef }) {
             <div className="text-xs text-gray-400 truncate">{user?.email}</div>
           </div>
           <div className="py-1.5">
-            <Link to="/analytics" className="block px-4 py-2 text-sm text-gray-200 hover:bg-white/5">
+            <a
+              href={ANALYTICS.workspace}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-4 py-2 text-sm text-gray-200 hover:bg-white/5"
+            >
               Workspace
-            </Link>
-            <Link to="/profile" className="block px-4 py-2 text-sm text-gray-200 hover:bg-white/5">
+            </a>
+            <a
+              href={ANALYTICS.profile}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-4 py-2 text-sm text-gray-200 hover:bg-white/5"
+            >
               Profile &amp; settings
-            </Link>
+            </a>
             <a
               href={DOCS_URL}
               target="_blank"
@@ -589,12 +606,24 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
           {user ? (
             <>
               <div className="text-xs text-gray-400">{user.email}</div>
-              <Link to="/analytics" onClick={onClose} className="block px-3 py-2 rounded-lg text-sm bg-blue-500/10 border border-blue-400/20 text-blue-100">
+              <a
+                href={ANALYTICS.workspace}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onClose}
+                className="block px-3 py-2 rounded-lg text-sm bg-blue-500/10 border border-blue-400/20 text-blue-100"
+              >
                 Open workspace
-              </Link>
-              <Link to="/profile" onClick={onClose} className="block px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/5">
+              </a>
+              <a
+                href={ANALYTICS.profile}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onClose}
+                className="block px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/5"
+              >
                 Profile &amp; settings
-              </Link>
+              </a>
               <button
                 type="button"
                 onClick={onSignOut}
@@ -605,9 +634,15 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
             </>
           ) : (
             <>
-              <Link to="/auth?mode=login" onClick={onClose} className="block px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/5">
+              <a
+                href={ANALYTICS.signIn}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onClose}
+                className="block px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/5"
+              >
                 Sign in
-              </Link>
+              </a>
               <Link to="/contact?reason=sales" onClick={onClose} className="block text-center px-3 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600">
                 Contact sales
               </Link>

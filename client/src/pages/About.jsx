@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/rink-logo.png";
+import { ANALYTICS } from "../links";
 
 const VALUES = [
   { title: "Outcomes over hours", body: "We bill for results, not for filling timesheets. Every engagement starts with a clear definition of done and an honest line of sight to ROI." },
@@ -43,7 +44,7 @@ export default function About() {
             RINK Global Services is a founder-led IT consulting and staffing firm based in
             Farmington Hills, Michigan. We deliver cloud, infrastructure, security, managed
             services, and data programs for prime vendors and end clients — and we operate
-            our own production SaaS, <Link to="/analytics" className="text-blue-700 hover:text-blue-800 underline decoration-blue-200 underline-offset-4">RINK Data Analytics</Link>, so we live the same uptime our customers ask us to deliver.
+            our own production SaaS, <a href={ANALYTICS.home} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 underline decoration-blue-200 underline-offset-4">RINK Data Analytics</a>, so we live the same uptime our customers ask us to deliver.
           </p>
 
           <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3">
