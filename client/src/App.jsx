@@ -35,12 +35,39 @@ function GlobalAssistant() {
   return <AIAssistant />;
 }
 
+// Marketing pages use a light, corporate palette. The signed-in workspace
+// keeps the existing dark "tool" aesthetic.
+function isAppRoute(pathname) {
+  return (
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/analytics") ||
+    pathname.startsWith("/tools") ||
+    pathname.startsWith("/profile")
+  );
+}
+
+function ThemedShell({ children }) {
+  const { pathname } = useLocation();
+  const dark = isAppRoute(pathname);
+  return (
+    <div
+      className={
+        dark
+          ? "min-h-screen flex flex-col bg-gradient-to-br from-black via-gray-900 to-blue-900 text-white"
+          : "min-h-screen flex flex-col bg-white text-slate-900"
+      }
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <ScrollToTop />
-        <div className="min-h-screen flex flex-col bg-gradient-to-br from-black via-gray-900 to-blue-900 text-white">
+        <ThemedShell>
           <Navbar />
           <main className="flex-1">
             <Routes>
@@ -123,7 +150,7 @@ export default function App() {
           </main>
           <Footer />
           <GlobalAssistant />
-        </div>
+        </ThemedShell>
       </BrowserRouter>
     </AuthProvider>
   );

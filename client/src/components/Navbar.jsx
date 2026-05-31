@@ -112,6 +112,16 @@ function avatarColor(seed = "") {
 // Main component
 // ---------------------------------------------------------------------------
 
+// Same predicate ThemedShell uses — keep them in sync.
+function isAppRoute(pathname) {
+  return (
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/analytics") ||
+    pathname.startsWith("/tools") ||
+    pathname.startsWith("/profile")
+  );
+}
+
 export default function Navbar() {
   const { user, displayName, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);          // mobile drawer
@@ -121,6 +131,46 @@ export default function Navbar() {
   const location = useLocation();
   const userMenuRef = useRef(null);
   const megaRef = useRef(null);
+  const dark = isAppRoute(location.pathname);
+
+  // Theme tokens — keep all the route-aware styling in one place.
+  const t = dark
+    ? {
+        header: "backdrop-blur-xl bg-gradient-to-b from-black/70 via-black/60 to-black/40 border-b border-white/10",
+        brandText: "text-white",
+        brandSub: "text-blue-300/80",
+        navLink: "text-gray-200 hover:text-white hover:bg-white/5",
+        navLinkActive: "text-white bg-white/5",
+        navTrigger: "text-gray-200 hover:text-white hover:bg-white/5",
+        navTriggerActive: "text-white bg-white/10",
+        signInLink: "text-gray-200 hover:text-white hover:bg-white/5",
+        megaPanel: "bg-gradient-to-b from-gray-950/95 to-black/90 border-b border-white/10",
+        megaHeading: "text-blue-300",
+        megaTitle: "text-white",
+        megaHint: "text-gray-400",
+        megaItemHover: "hover:bg-white/5",
+        megaDivider: "border-white/10",
+        mobileBtn: "text-gray-200 hover:text-white hover:bg-white/5",
+        externalIcon: "text-blue-300",
+      }
+    : {
+        header: "bg-white/95 backdrop-blur-xl border-b border-slate-200",
+        brandText: "text-slate-900",
+        brandSub: "text-blue-600/80",
+        navLink: "text-slate-700 hover:text-slate-900 hover:bg-slate-100",
+        navLinkActive: "text-slate-900 bg-slate-100",
+        navTrigger: "text-slate-700 hover:text-slate-900 hover:bg-slate-100",
+        navTriggerActive: "text-slate-900 bg-slate-100",
+        signInLink: "text-slate-700 hover:text-slate-900 hover:bg-slate-100",
+        megaPanel: "bg-white border-b border-slate-200",
+        megaHeading: "text-blue-700",
+        megaTitle: "text-slate-900",
+        megaHint: "text-slate-500",
+        megaItemHover: "hover:bg-slate-50",
+        megaDivider: "border-slate-200",
+        mobileBtn: "text-slate-700 hover:text-slate-900 hover:bg-slate-100",
+        externalIcon: "text-blue-600",
+      };
 
   // Close everything on route change.
   useEffect(() => {
@@ -157,57 +207,55 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-xl bg-gradient-to-b from-black/70 via-black/60 to-black/40 border-b border-white/10">
+    <header className={`sticky top-0 z-40 ${t.header}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
         <div className="h-16 flex items-center justify-between gap-4">
           {/* Brand */}
           <Link to="/" className="flex items-center gap-2.5 group flex-none">
             <img src={logo} alt="RINK" className="h-8 w-8 rounded-lg" />
             <span className="hidden sm:flex flex-col leading-none">
-              <span className="text-base font-bold text-white tracking-tight group-hover:opacity-90">RINK</span>
-              <span className="text-[10px] uppercase tracking-[0.18em] text-blue-300/80 -mt-px">Global Services</span>
+              <span className={`text-base font-bold tracking-tight group-hover:opacity-90 ${t.brandText}`}>RINK</span>
+              <span className={`text-[10px] uppercase tracking-[0.18em] -mt-px ${t.brandSub}`}>Global Services</span>
             </span>
           </Link>
 
           {/* Desktop nav */}
           <nav ref={megaRef} className="hidden lg:flex items-center gap-1 text-sm">
-            {/* What we do — mega menu */}
             <NavTrigger
               label="What we do"
               active={openMega === "do"}
               onToggle={() => setOpenMega(openMega === "do" ? null : "do")}
+              t={t}
             />
-            {/* What we think — popover */}
             <NavTrigger
               label="What we think"
               active={openMega === "think"}
               onToggle={() => setOpenMega(openMega === "think" ? null : "think")}
+              t={t}
             />
-            {/* Careers — direct link */}
             <NavLink
               to="/careers"
               className={({ isActive }) =>
-                `px-3 py-2 rounded-lg text-gray-200 hover:text-white hover:bg-white/5 ${isActive ? "text-white bg-white/5" : ""}`
+                `px-3 py-2 rounded-lg ${t.navLink} ${isActive ? t.navLinkActive : ""}`
               }
               onClick={() => setOpenMega(null)}
             >
               Careers
             </NavLink>
-            {/* Contact us — direct link */}
             <NavLink
               to="/contact"
               className={({ isActive }) =>
-                `px-3 py-2 rounded-lg text-gray-200 hover:text-white hover:bg-white/5 ${isActive ? "text-white bg-white/5" : ""}`
+                `px-3 py-2 rounded-lg ${t.navLink} ${isActive ? t.navLinkActive : ""}`
               }
               onClick={() => setOpenMega(null)}
             >
               Contact us
             </NavLink>
-            {/* About RINK — mega menu */}
             <NavTrigger
               label="About RINK"
               active={openMega === "about"}
               onToggle={() => setOpenMega(openMega === "about" ? null : "about")}
+              t={t}
             />
           </nav>
 
@@ -234,7 +282,7 @@ export default function Navbar() {
               <>
                 <Link
                   to="/auth?mode=login"
-                  className="hidden md:inline-flex px-3 py-2 rounded-lg text-sm text-gray-200 hover:text-white hover:bg-white/5"
+                  className={`hidden md:inline-flex px-3 py-2 rounded-lg text-sm ${t.signInLink}`}
                 >
                   Sign in
                 </Link>
@@ -252,7 +300,7 @@ export default function Navbar() {
               type="button"
               onClick={() => setMenuOpen(true)}
               aria-label="Open menu"
-              className="lg:hidden p-2 rounded-lg text-gray-200 hover:text-white hover:bg-white/5"
+              className={`lg:hidden p-2 rounded-lg ${t.mobileBtn}`}
             >
               {Icon.menu}
             </button>
@@ -261,37 +309,38 @@ export default function Navbar() {
 
         {/* ============== MEGA MENU PANELS (desktop) ============== */}
         {openMega === "do" && (
-          <MegaPanel onClose={() => setOpenMega(null)}>
+          <MegaPanel onClose={() => setOpenMega(null)} t={t}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-x-10 gap-y-6">
               {Object.entries(WHAT_WE_DO).map(([heading, items]) => (
-                <MegaColumn key={heading} heading={heading} items={items} />
+                <MegaColumn key={heading} heading={heading} items={items} t={t} />
               ))}
             </div>
             <MegaFooter
               text="See how it all comes together"
               cta={{ label: "Explore services", to: "/#services" }}
+              t={t}
             />
           </MegaPanel>
         )}
 
         {openMega === "think" && (
-          <MegaPanel onClose={() => setOpenMega(null)}>
+          <MegaPanel onClose={() => setOpenMega(null)} t={t}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 max-w-3xl">
-              <MegaColumn heading="Insights & writing" items={WHAT_WE_THINK} />
-              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-                <div className="text-xs uppercase tracking-widest text-blue-300 font-semibold mb-2">
+              <MegaColumn heading="Insights & writing" items={WHAT_WE_THINK} t={t} />
+              <div className={`rounded-xl border p-5 ${dark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+                <div className={`text-xs uppercase tracking-widest font-semibold mb-2 ${t.megaHeading}`}>
                   Featured
                 </div>
-                <h3 className="text-base font-semibold text-white">
+                <h3 className={`text-base font-semibold ${t.megaTitle}`}>
                   RINK Data Analytics — under the hood
                 </h3>
-                <p className="text-sm text-gray-400 mt-2 leading-relaxed">
+                <p className={`text-sm mt-2 leading-relaxed ${t.megaHint}`}>
                   Our own SaaS. How forecasting, anomaly detection, segmentation, and routing
                   fit into client engagements.
                 </p>
                 <Link
                   to="/analytics"
-                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-300 hover:text-blue-200"
+                  className={`mt-3 inline-flex items-center gap-1.5 text-sm font-medium ${dark ? "text-blue-300 hover:text-blue-200" : "text-blue-700 hover:text-blue-800"}`}
                 >
                   Try the workspace
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -304,15 +353,16 @@ export default function Navbar() {
         )}
 
         {openMega === "about" && (
-          <MegaPanel onClose={() => setOpenMega(null)}>
+          <MegaPanel onClose={() => setOpenMega(null)} t={t}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 max-w-3xl">
               {Object.entries(ABOUT_RINK).map(([heading, items]) => (
-                <MegaColumn key={heading} heading={heading} items={items} />
+                <MegaColumn key={heading} heading={heading} items={items} t={t} />
               ))}
             </div>
             <MegaFooter
               text="Want to work with us?"
               cta={{ label: "Open roles", to: "/careers" }}
+              t={t}
             />
           </MegaPanel>
         )}
@@ -335,16 +385,14 @@ export default function Navbar() {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function NavTrigger({ label, active, onToggle }) {
+function NavTrigger({ label, active, onToggle, t }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-expanded={active}
       className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition ${
-        active
-          ? "text-white bg-white/10"
-          : "text-gray-200 hover:text-white hover:bg-white/5"
+        active ? t.navTriggerActive : t.navTrigger
       }`}
     >
       {label}
@@ -355,10 +403,10 @@ function NavTrigger({ label, active, onToggle }) {
   );
 }
 
-function MegaPanel({ children, onClose }) {
+function MegaPanel({ children, onClose, t }) {
   return (
     <div
-      className="hidden lg:block absolute left-0 right-0 top-full bg-gradient-to-b from-gray-950/95 to-black/90 backdrop-blur-xl border-b border-white/10 shadow-2xl shadow-blue-500/5 z-30"
+      className={`hidden lg:block absolute left-0 right-0 top-full backdrop-blur-xl shadow-2xl shadow-blue-500/5 z-30 ${t.megaPanel}`}
       onMouseLeave={onClose}
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8">{children}</div>
@@ -366,16 +414,16 @@ function MegaPanel({ children, onClose }) {
   );
 }
 
-function MegaColumn({ heading, items }) {
+function MegaColumn({ heading, items, t }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-widest text-blue-300 font-semibold mb-3">
+      <div className={`text-[11px] uppercase tracking-widest font-semibold mb-3 ${t.megaHeading}`}>
         {heading}
       </div>
       <ul className="space-y-1">
         {items.map((it) => (
           <li key={it.label}>
-            <MegaItem {...it} />
+            <MegaItem {...it} t={t} />
           </li>
         ))}
       </ul>
@@ -383,20 +431,20 @@ function MegaColumn({ heading, items }) {
   );
 }
 
-function MegaItem({ label, to, href, external, hint, badge }) {
+function MegaItem({ label, to, href, external, hint, badge, t }) {
   const body = (
-    <div className="group flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition">
+    <div className={`group flex items-start gap-2 px-3 py-2 rounded-lg transition ${t.megaItemHover}`}>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-white flex items-center gap-2">
+        <div className={`text-sm font-medium flex items-center gap-2 ${t.megaTitle}`}>
           <span>{label}</span>
           {badge && (
-            <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-purple-500/30 border border-purple-400/30 text-purple-100">
+            <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-purple-100 border border-purple-300 text-purple-700">
               {badge}
             </span>
           )}
-          {external && <span className="text-blue-300">{Icon.external}</span>}
+          {external && <span className={t.externalIcon}>{Icon.external}</span>}
         </div>
-        {hint && <div className="text-xs text-gray-400 mt-0.5 leading-snug">{hint}</div>}
+        {hint && <div className={`text-xs mt-0.5 leading-snug ${t.megaHint}`}>{hint}</div>}
       </div>
     </div>
   );
@@ -410,13 +458,13 @@ function MegaItem({ label, to, href, external, hint, badge }) {
   return <Link to={to}>{body}</Link>;
 }
 
-function MegaFooter({ text, cta }) {
+function MegaFooter({ text, cta, t }) {
   return (
-    <div className="mt-8 pt-5 border-t border-white/10 flex items-center justify-between text-sm">
-      <span className="text-gray-400">{text}</span>
+    <div className={`mt-8 pt-5 border-t flex items-center justify-between text-sm ${t.megaDivider}`}>
+      <span className={t.megaHint}>{text}</span>
       <Link
         to={cta.to}
-        className="inline-flex items-center gap-1.5 text-blue-300 hover:text-blue-200 font-medium"
+        className={`inline-flex items-center gap-1.5 font-medium ${t === undefined || t.megaHeading === "text-blue-300" ? "text-blue-300 hover:text-blue-200" : "text-blue-700 hover:text-blue-800"}`}
       >
         {cta.label}
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -27,9 +27,19 @@ export default function Footer() {
               </div>
             </Link>
             <p className="text-sm text-gray-400 mt-4 max-w-sm leading-relaxed">
-              Time-series forecasting and data intelligence for modern teams.
-              Upload, train, and forecast — all in one workspace.
+              Founder-led IT consulting and staffing firm. Cloud, infrastructure,
+              cybersecurity, managed services, and data analytics — backed by
+              our own production SaaS, RINK Data Analytics.
             </p>
+
+            <address className="not-italic text-xs text-gray-500 mt-4 leading-relaxed">
+              <div className="text-gray-300 font-medium">RINK Global Services</div>
+              38214 Saratoga Cir<br />
+              Farmington Hills, MI 48331 · USA<br />
+              <a href="mailto:nikhila.vintha@rinkglobal.com" className="text-blue-300 hover:text-blue-200">
+                nikhila.vintha@rinkglobal.com
+              </a>
+            </address>
 
             <NewsletterSignup />
 
