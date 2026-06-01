@@ -7,7 +7,7 @@ export default function AIAssistant() {
     {
       type: "bot",
       content:
-        "Hi! I'm RINK AI Assistant. Ask me about machine learning, time-series forecasting, or how to use this platform.",
+        "Hi! I'm the RINK Data Analytics assistant. Ask me how to upload data, train a model, run a forecast, or use any of the workspace tools.",
       timestamp: new Date(),
     },
   ]);
@@ -29,7 +29,7 @@ export default function AIAssistant() {
     setIsTyping(true);
 
     try {
-      const response = await api.post("/api/ai-assistant", { message: text });
+      const response = await api.post("/api/ai-assistant", { message: text, context: "analytics" });
       setMessages((prev) => [
         ...prev,
         { type: "bot", content: response.data.response, timestamp: new Date() },
@@ -88,8 +88,8 @@ export default function AIAssistant() {
                 <span className="text-sm font-bold">AI</span>
               </div>
               <div>
-                <h3 className="font-semibold">RINK AI Assistant</h3>
-                <p className="text-xs text-blue-100">ML &amp; Forecasting Expert</p>
+                <h3 className="font-semibold">RINK Data Analytics</h3>
+                <p className="text-xs text-blue-100">Workspace &amp; forecasting help</p>
               </div>
             </div>
           </div>

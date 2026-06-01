@@ -75,7 +75,7 @@ export default function Footer() {
 
           {/* Product */}
           <FooterColumn title="Product" className="lg:col-span-2">
-            <FooterLink to="/analytics">Workspace</FooterLink>
+            <FooterLink to="/analytics-workspace">Workspace</FooterLink>
             <FooterAnchor href="/#features">Features</FooterAnchor>
             <FooterAnchor href="/#use-cases">Use Cases</FooterAnchor>
             <FooterLink to="/auth?mode=register">Get Started</FooterLink>

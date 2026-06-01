@@ -28,6 +28,7 @@ function avatarColor(seed) {
 // ---------------------------------------------------------------------------
 
 const DOCS_URL = "https://docs.rinkglobal.com";
+const MARKETING_URL = import.meta.env.VITE_MARKETING_URL || "https://rinkglobal.com";
 
 const Icon = {
   sparkles: (
@@ -136,7 +137,7 @@ const Icon = {
 // Tools available to authenticated users. Order matters — this is what shows
 // in the dropdown and the mobile drawer.
 const TOOLS = [
-  { to: "/analytics", label: "Forecasting", icon: "forecast", hint: "Predict future values" },
+  { to: "/analytics-workspace", label: "Forecasting", icon: "forecast", hint: "Predict future values" },
   { to: "/tools/anomaly", label: "Anomaly Detection", icon: "anomaly", hint: "Find unusual rows" },
   { to: "/tools/churn", label: "Churn Prediction", icon: "churn", hint: "Score customer risk" },
   { to: "/tools/segmentation", label: "Customer Segmentation", icon: "segmentation", hint: "Cluster customers" },
@@ -232,16 +233,33 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-black/30 border-b border-white/10">
       <div className="mx-auto max-w-7xl flex items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        {/* Brand */}
-        <Link to="/" className="flex items-center gap-2 flex-none" onClick={() => setMenuOpen(false)}>
-          <img src={logo} className="h-9 w-9" alt="RINK logo" />
-          <div className="leading-none">
-            <div className="text-lg font-bold text-white">RINK</div>
-            <div className="text-[10px] uppercase tracking-widest text-blue-300/80 -mt-0.5">
-              Global Services
+        {/* Brand — two distinct logos: the RINK mark goes to the company site,
+            the "Analytics" lockup goes to the product home. */}
+        <div className="flex items-center gap-2.5 flex-none">
+          <a
+            href={MARKETING_URL}
+            className="flex items-center gap-2 group"
+            title="RINK Global Services — company site"
+          >
+            <img src={logo} className="h-9 w-9" alt="RINK Global Services" />
+            <div className="leading-none hidden sm:block">
+              <div className="text-lg font-bold text-white group-hover:text-blue-200 transition">RINK</div>
+              <div className="text-[10px] uppercase tracking-widest text-blue-300/80 -mt-0.5">
+                Global Services
+              </div>
             </div>
-          </div>
-        </Link>
+          </a>
+          <span className="h-7 w-px bg-white/15" aria-hidden="true" />
+          <Link
+            to="/"
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white/5 transition"
+            title="RINK Data Analytics — workspace home"
+          >
+            <span className="text-blue-300">{Icon.workspace}</span>
+            <span className="text-sm font-semibold text-white leading-none">Analytics</span>
+          </Link>
+        </div>
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-1 text-sm">
@@ -412,7 +430,7 @@ function UserMenu({ user, displayName, open, setOpen, onSignOut, menuRef }) {
             </div>
           </div>
 
-          <MenuItem to="/analytics" icon={Icon.workspace} label="Workspace" hint="Forecasting tools" />
+          <MenuItem to="/analytics-workspace" icon={Icon.workspace} label="Workspace" hint="Forecasting tools" />
           <MenuItem to="/profile" icon={Icon.profile} label="Profile" hint="Update your details" />
           <MenuItem href={DOCS_URL} external icon={Icon.docs} label="Documentation" hint="Guides &amp; API reference" />
           <MenuItem to="/contact" icon={Icon.help} label="Help &amp; support" hint="Talk to the team" />
@@ -501,7 +519,7 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
             <div className="text-[11px] uppercase tracking-widest text-gray-500 px-3 pt-2 pb-1">
               Tools
             </div>
-            <DrawerLink to="/analytics" icon={Icon.forecast} label="Forecasting" onClose={onClose} />
+            <DrawerLink to="/analytics-workspace" icon={Icon.forecast} label="Forecasting" onClose={onClose} />
             <DrawerLink to="/tools/anomaly" icon={Icon.anomaly} label="Anomaly Detection" onClose={onClose} />
             <DrawerLink to="/tools/churn" icon={Icon.churn} label="Churn Prediction" onClose={onClose} />
             <DrawerLink to="/tools/segmentation" icon={Icon.segmentation} label="Customer Segmentation" onClose={onClose} />

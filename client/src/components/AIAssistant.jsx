@@ -7,7 +7,7 @@ export default function AIAssistant() {
     {
       type: "bot",
       content:
-        "Hi! I'm RINK AI Assistant. Ask me about machine learning, time-series forecasting, or how to use this platform.",
+        "Hi! I'm the RINK assistant. Ask me about RINK's services — IT staff augmentation, data analytics & AI, cloud, security, managed services — or how to start an engagement.",
       timestamp: new Date(),
     },
   ]);
@@ -29,7 +29,7 @@ export default function AIAssistant() {
     setIsTyping(true);
 
     try {
-      const response = await api.post("/api/ai-assistant", { message: text });
+      const response = await api.post("/api/ai-assistant", { message: text, context: "marketing" });
       setMessages((prev) => [
         ...prev,
         { type: "bot", content: response.data.response, timestamp: new Date() },
@@ -88,8 +88,8 @@ export default function AIAssistant() {
                 <span className="text-sm font-bold">AI</span>
               </div>
               <div>
-                <h3 className="font-semibold">RINK AI Assistant</h3>
-                <p className="text-xs text-blue-100">ML &amp; Forecasting Expert</p>
+                <h3 className="font-semibold">RINK Assistant</h3>
+                <p className="text-xs text-blue-100">Services &amp; engagement help</p>
               </div>
             </div>
           </div>
@@ -144,7 +144,7 @@ export default function AIAssistant() {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder="Ask me about ML, models, predictions…"
+                placeholder="Ask about RINK's services or how to get started…"
                 className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                 disabled={isTyping}
               />

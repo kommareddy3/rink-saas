@@ -174,7 +174,7 @@ export default function Contact() {
   // -------------------------------------------------------------------------
 
   return (
-    <div className="px-4 sm:px-6 lg:px-10 py-12 max-w-7xl mx-auto">
+    <div className="px-4 sm:px-6 lg:px-10 py-12 max-w-7xl mx-auto overflow-x-hidden">
       <ToastList toasts={toasts} dismiss={dismiss} />
 
       <PageHeader
@@ -213,7 +213,7 @@ export default function Contact() {
                 }
               />
 
-              <form onSubmit={handleSubmit} noValidate>
+              <form onSubmit={handleSubmit} noValidate className="relative">
                 {/* Topic selector */}
                 <Label>What's this about?</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-1.5">
@@ -385,11 +385,11 @@ export default function Contact() {
             />
             <ul className="text-sm space-y-2.5">
               {DIRECT_EMAILS.map((e) => (
-                <li key={e.email} className="flex items-center justify-between">
-                  <span className="text-gray-400">{e.label}</span>
+                <li key={e.email} className="flex items-center justify-between gap-3">
+                  <span className="text-gray-400 flex-none">{e.label}</span>
                   <a
                     href={`mailto:${e.email}`}
-                    className="text-blue-300 hover:text-blue-200 truncate"
+                    className="text-blue-300 hover:text-blue-200 truncate min-w-0 text-right"
                   >
                     {e.email}
                   </a>

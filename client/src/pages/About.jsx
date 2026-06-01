@@ -14,13 +14,13 @@ const REAL_SIGNALS = [
   { v: "Live SaaS", l: "RINK Data Analytics" },
   { v: "Farmington Hills, MI", l: "US headquarters" },
   { v: "C2C + W2", l: "engagement models" },
-  { v: "Founder-led", l: "President directly reachable" },
+  { v: "Founder-led", l: "Founder directly reachable" },
 ];
 
 const STORY = [
   { year: "Founded", title: "Built by an operator, for operators", body: "RINK Global Services was founded by Nikhila Vintha after years of watching staffing firms that couldn't write code and consulting firms that couldn't deploy it. The thesis: one operator-led firm that can both place consultants AND ship real product." },
   { year: "Today", title: "Multi-practice consulting + an in-house product", body: "We're just out of stealth, focused on cloud, infrastructure, cybersecurity, managed services, and data analytics — for vendors who need C2C consultants and end clients who need delivery teams. We also operate RINK Data Analytics, our own production SaaS, which keeps our delivery muscle sharp." },
-  { year: "Tomorrow", title: "Founding cohort, then scale", body: "We're picking a small founding cohort of customers we can give President-level attention to, then growing the bench around the playbooks we build with them. No body-shopping, no race to the bottom on rates." },
+  { year: "Tomorrow", title: "Founding cohort, then scale", body: "We're picking a small founding cohort of customers we can give senior, hands-on attention to, then growing the bench around the playbooks we build with them. No body-shopping, no race to the bottom on rates." },
 ];
 
 const LOCATIONS = [
@@ -71,7 +71,7 @@ export default function About() {
                 NV
               </div>
               <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-widest text-blue-700 font-semibold">President &amp; Founder</div>
+                <div className="text-[11px] uppercase tracking-widest text-blue-700 font-semibold">Founder</div>
                 <h3 className="text-2xl font-bold text-slate-900 mt-1">Nikhila Vintha</h3>
                 <p className="text-slate-700 mt-3 leading-relaxed">
                   Nikhila leads the consulting practice and the in-house product team behind RINK Data Analytics. She personally takes engagement-level questions from founding-cohort customers — you'll have her email, not a regional account exec's.

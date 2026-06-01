@@ -13,7 +13,7 @@ const TOOLS = [
     tagline: "Predict future values",
     description:
       "Gradient-boosting models with engineered lag features — univariate or multivariate with predictor columns. Auto-detects cadence (daily, weekly, monthly) and produces confidence-banded forecasts.",
-    href: "/analytics",
+    href: "/analytics-workspace",
     accent: "from-blue-500/20 to-blue-500/0 text-blue-300",
     icon: (
       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -253,7 +253,7 @@ export default function Home() {
 
           <div className="mt-10 flex flex-col sm:flex-row justify-center items-center gap-3">
             <Link
-              to={user ? "/analytics" : "/auth?mode=register"}
+              to={user ? "/analytics-workspace" : "/auth?mode=register"}
               className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-xl shadow-blue-500/30 hover:shadow-blue-500/40 transition-all"
             >
               {user ? "Open your workspace" : "Start free"}
@@ -521,7 +521,7 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-3">
               <Link
-                to={user ? "/analytics" : "/auth?mode=register"}
+                to={user ? "/analytics-workspace" : "/auth?mode=register"}
                 className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-xl shadow-blue-500/30 transition"
               >
                 {user ? "Open workspace" : "Get started for free"}

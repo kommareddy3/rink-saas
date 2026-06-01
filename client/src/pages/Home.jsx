@@ -7,7 +7,7 @@ import { ANALYTICS } from "../links";
 // ---------------------------------------------------------------------------
 // Plan A — "Corporate Trust" light palette, adapted for founder-stage RINK.
 // Honesty over fake numbers: real signals (the live SaaS, US office,
-// President's direct email, founding-client offer) replace the things we
+// founder's direct email, founding-client offer) replace the things we
 // don't have yet (client logos, association badges, body-count stats).
 // ---------------------------------------------------------------------------
 
@@ -15,6 +15,21 @@ import { ANALYTICS } from "../links";
 const HERO_IMG = "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=1400&q=80";
 
 const SERVICES = [
+  {
+    name: "IT Staff Augmentation",
+    tagline: "C2C and W2 talent",
+    description: "Pre-vetted cloud, DevOps, security, data, and full-stack consultants — MSA-friendly paperwork.",
+    accent: "amber",
+  },
+  {
+    name: "Data Analytics & AI",
+    tagline: "Backed by our own SaaS",
+    description: "Data engineering, MLOps, dashboards, forecasting. Optionally delivered on RINK Data Analytics.",
+    accent: "purple",
+    href: ANALYTICS.home,
+    external: true,
+    badge: "Product",
+  },
   {
     name: "Cloud Migrations",
     tagline: "AWS · Azure · GCP",
@@ -38,21 +53,6 @@ const SERVICES = [
     tagline: "24×7 ops & support",
     description: "Monitoring, patching, backup, DR, ITSM, FinOps, and tiered helpdesk. Outcome-based SLAs.",
     accent: "emerald",
-  },
-  {
-    name: "Data Analytics & AI",
-    tagline: "Backed by our own SaaS",
-    description: "Data engineering, MLOps, dashboards, forecasting. Optionally delivered on RINK Data Analytics.",
-    accent: "purple",
-    href: ANALYTICS.home,
-    external: true,
-    badge: "Product",
-  },
-  {
-    name: "IT Staff Augmentation",
-    tagline: "C2C and W2 talent",
-    description: "Pre-vetted cloud, DevOps, security, data, and full-stack consultants — MSA-friendly paperwork.",
-    accent: "amber",
   },
 ];
 
@@ -109,7 +109,7 @@ const INDUSTRIES = [
 const FAQ = [
   {
     q: "We've never heard of RINK. Why should we trust you?",
-    a: "Honest answer: we're a founder-led firm just out of stealth, based in Farmington Hills, Michigan, led by Nikhila Vintha (President). We don't have client logos to wave at you yet — what we do have is an in-house production SaaS (RINK Data Analytics) we operate ourselves, a US office address, and a President's direct email at the bottom of this page. Founding-cohort customers get a 90-day satisfaction guarantee and a President-level escalation path you don't get at larger firms.",
+    a: "Honest answer: we're a founder-led firm just out of stealth, based in Farmington Hills, Michigan, led by Nikhila Vintha. We don't have client logos to wave at you yet — what we do have is an in-house production SaaS (RINK Data Analytics) we operate ourselves, a US office address, and the founder's direct email at the bottom of this page. Founding-cohort customers get senior, hands-on attention and direct access to the people doing the work.",
   },
   { q: "What's the difference between C2C and W2 for our team?", a: "C2C (Corp-to-Corp) consultants are on our payroll and we invoice you on NET-30/45 terms — flexible, fast to scale up and down, the consultant carries their own benefits. W2 means we place a permanent or contract-to-hire employee on your payroll. Many clients mix both: C2C to ramp a project quickly, W2 to retain the institutional knowledge afterwards." },
   { q: "How fast can you fill a role?", a: "For common stacks (AWS, Azure, .NET, Java, React, Python): a vetted shortlist within 48 hours. For niche skills (FedRAMP, OT/SCADA, specific industry experience): 72 hours. We don't believe in week-long shortlists — by then your client has moved on." },
@@ -123,11 +123,11 @@ const FAQ = [
 // ---------------------------------------------------------------------------
 
 const EXPLORER_TABS = [
+  { id: "staffing", label: "Staff augmentation", intro: "Senior C2C consultants or W2 placements — vetted, code-reviewed, and reference-checked.", points: ["Shortlists within 48 hours for common stacks", "Right-to-represent stays clean — vendor-neutral by policy", "C2C through your LLC OR W2 on our payroll", "US, Canada, and offshore delivery options"], cta: { to: "/contact?reason=sales", label: "Send a JD" } },
+  { id: "data", label: "Data analytics & AI", intro: "Data engineering, MLOps, and our own SaaS — RINK Data Analytics — for short time-to-value.", points: ["Snowflake / Databricks / Postgres modern stacks", "MLOps with reproducible feature stores and CI", "Optional: ship straight to RINK Data Analytics", "Privacy-aware pipelines with encryption at rest from day one"], cta: { to: ANALYTICS.home, external: true, label: "Open RINK Data Analytics" } },
   { id: "cloud", label: "Cloud migrations", intro: "Move workloads to AWS, Azure, or GCP without breaking what's already working.", points: ["Landing-zone design with cost guard-rails", "Migration waves planned around business calendars", "Containers, serverless, or managed databases where it pays off", "Hand-off runbooks so your team owns it after go-live"], cta: { to: "/contact?reason=sales", label: "Plan a migration" } },
   { id: "security", label: "Cybersecurity", intro: "From hardened landing zones to 24×7 SOC retainers — security as the baseline, not an upsell.", points: ["Identity-first architectures (Entra, AWS SSO, Okta)", "Continuous controls for SOC2 / HIPAA / ISO 27001", "Detection-as-code pipelines and IR retainers", "Threat-modeling workshops before the first sprint"], cta: { to: "/contact?reason=security", label: "Talk to security" } },
   { id: "managed", label: "Managed services", intro: "Outcome-based ops with monthly KPI reporting — never minutes-billed body-shopping.", points: ["24×7 monitoring, patching, backup, and DR", "L1–L3 helpdesk with named pods", "FinOps and cost optimisation built into every runbook", "Quarterly account reviews with the senior practice lead"], cta: { to: "/contact?reason=sales", label: "Hand us the ops" } },
-  { id: "data", label: "Data analytics & AI", intro: "Data engineering, MLOps, and our own SaaS — RINK Data Analytics — for short time-to-value.", points: ["Snowflake / Databricks / Postgres modern stacks", "MLOps with reproducible feature stores and CI", "Optional: ship straight to RINK Data Analytics", "Privacy-aware pipelines with encryption at rest from day one"], cta: { to: ANALYTICS.home, external: true, label: "Open RINK Data Analytics" } },
-  { id: "staffing", label: "Staff augmentation", intro: "Senior C2C consultants or W2 placements — vetted, code-reviewed, and reference-checked.", points: ["Shortlists within 48 hours for common stacks", "Right-to-represent stays clean — vendor-neutral by policy", "C2C through your LLC OR W2 on our payroll", "US, Canada, and offshore delivery options"], cta: { to: "/contact?reason=sales", label: "Send a JD" } },
 ];
 
 function Explorer() {
@@ -272,7 +272,7 @@ export default function Home() {
                 <svg className="w-4 h-4 mt-0.5 text-emerald-600 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                <span>Led by <b>Nikhila Vintha</b>, President</span>
+                <span>Founder-led by <b>Nikhila Vintha</b></span>
               </div>
               <div className="flex items-start gap-2">
                 <svg className="w-4 h-4 mt-0.5 text-emerald-600 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -301,7 +301,7 @@ export default function Home() {
               {/* Floating callout */}
               <div className="absolute left-4 right-4 sm:left-6 sm:right-6 bottom-4 sm:bottom-6 rounded-xl bg-white/95 backdrop-blur p-4 ring-1 ring-slate-200 shadow-lg">
                 <div className="text-[10px] uppercase tracking-widest text-blue-700 font-semibold">Founding clients welcome</div>
-                <div className="text-sm font-semibold text-slate-900 mt-1">90-day satisfaction guarantee + President-level escalation</div>
+                <div className="text-sm font-semibold text-slate-900 mt-1">Senior, hands-on attention and direct access to the founder</div>
               </div>
             </div>
           </div>
@@ -524,13 +524,13 @@ export default function Home() {
             Be one of our first clients — and get treated like one.
           </h2>
           <p className="text-blue-100 mt-5 max-w-2xl mx-auto leading-relaxed">
-            We're just out of stealth. Founding-cohort customers get a level of attention you don't get from larger firms: a
-            President-level point of contact, a 90-day satisfaction guarantee, and pricing that reflects helping us prove the model.
+            We're just out of stealth. Founding-cohort customers get a level of attention you don't get from larger firms:
+            direct access to the founder, senior people on the work, and pricing that reflects helping us prove the model.
           </p>
           <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
             {[
-              { t: "President-level escalation", b: "Direct line to Nikhila Vintha — not a regional account exec." },
-              { t: "90-day satisfaction guarantee", b: "Not a fit? Walk away in the first 90 days. We refund our fees." },
+              { t: "Direct access to the founder", b: "Talk to Nikhila Vintha directly — not a regional account exec." },
+              { t: "Senior people on the work", b: "The people you meet are the people who deliver — no bait-and-switch." },
               { t: "Honest pricing", b: "Discounted founding-client rates while we build our case-study book." },
             ].map((x) => (
               <div key={x.t} className="p-5 rounded-2xl bg-white/[0.06] ring-1 ring-white/10 backdrop-blur">
@@ -568,10 +568,10 @@ export default function Home() {
                   NV
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-widest text-blue-700 font-semibold">President</div>
+                  <div className="text-[11px] uppercase tracking-widest text-blue-700 font-semibold">Founder</div>
                   <h3 className="text-xl font-bold text-slate-900 mt-1">Nikhila Vintha</h3>
                   <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                    Founder and President of RINK Global Services. Leads the consulting practice and the in-house product team behind RINK Data Analytics. Personally reachable for engagement-level questions.
+                    Founder of RINK Global Services. Leads the consulting practice and the in-house product team behind RINK Data Analytics. Personally reachable for engagement-level questions.
                   </p>
                   <a
                     href="mailto:nikhila.vintha@rinkglobal.com"

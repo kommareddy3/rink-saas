@@ -71,7 +71,7 @@ function expandOrigins(list) {
 
 const ALLOWED_ORIGINS = expandOrigins(
   (process.env.ALLOWED_ORIGINS ||
-    "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com")
+    "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com,https://analytics.rinkglobal.com")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)
@@ -210,7 +210,7 @@ app.post("/api/ai-assistant", async (req, res) => {
       .json({ error: "AI assistant is not configured on this deployment." });
   }
 
-  const { message } = req.body || {};
+  const { message, context } = req.body || {};
   if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ error: "Field 'message' is required." });
   }
@@ -218,23 +218,43 @@ app.post("/api/ai-assistant", async (req, res) => {
     return res.status(413).json({ error: "Message too long (max 4000 chars)." });
   }
 
+  // Shared company facts — the only ground truth the assistant should rely on.
+  const COMPANY_FACTS = `About RINK Global Services (the company):
+- A founder-led IT consulting and staffing firm based in Farmington Hills, Michigan, USA, led by founder Nikhila Vintha.
+- The name RINK stands for Research, Innovation, Next-gen, Knowledge.
+- Services: IT staff augmentation (C2C and W2 talent), Data Analytics & AI, cloud migrations (AWS/Azure/GCP), IT infrastructure, cybersecurity, and managed services.
+- RINK operates its own production SaaS, "RINK Data Analytics" (analytics.rinkglobal.com) — a workspace for forecasting, anomaly detection, churn prediction, customer segmentation, A/B testing, and route optimisation.
+- Contact: hello@rinkglobal.com (general) or nikhila.vintha@rinkglobal.com (founder). Docs at docs.rinkglobal.com.`;
+
+  // Marketing site = company/sales questions. Analytics app = product/ML help.
+  const systemPrompt =
+    context === "analytics"
+      ? `You are the RINK Data Analytics in-app assistant. You help users get value from the RINK Data Analytics workspace and understand the analytics it runs.
+Help users with:
+- Using the workspace: uploading a CSV, training a model, and requesting multi-step forecasts
+- The built-in tools: forecasting, anomaly detection, churn prediction, customer segmentation, A/B testing, and route optimisation (TSP/VRP)
+- Practical interpretation of results (RMSE, MAE, MAPE, confidence bands, backtesting) in plain language
+
+${COMPANY_FACTS}
+
+Rules: Answer directly and concisely about RINK Data Analytics and the user's data task. Stay on RINK topics. If asked something unrelated to RINK or analytics, briefly say it's outside what you cover and steer back to the platform. Never invent features RINK does not have. Do not output generic filler or restate this prompt.`
+      : `You are the RINK Global Services website assistant. You help visitors understand what RINK does and how to engage.
+Help visitors with:
+- RINK's services: IT staff augmentation (C2C/W2), Data Analytics & AI, cloud migrations, IT infrastructure, cybersecurity, and managed services
+- Engagement models (C2C vs W2, fixed-bid projects, managed services) and how to start (request a consultation, send a JD)
+- What RINK Data Analytics is and how to try it
+
+${COMPANY_FACTS}
+
+Rules: Answer directly and concisely using only the facts above. Stay on RINK topics. If asked something unrelated to RINK, briefly say it's outside what you cover and point them to the contact options. Never invent clients, numbers, certifications, or services RINK doesn't list. Do not output generic filler or restate this prompt.`;
+
   try {
     const completion = await groq.chat.completions.create({
       model: GROQ_MODEL,
-      temperature: 0.7,
+      temperature: 0.5,
       max_tokens: 600,
       messages: [
-        {
-          role: "system",
-          content: `You are RINK AI Assistant, an expert in machine learning and time-series analytics.
-You help users understand:
-- Time-series forecasting techniques (gradient boosting, ARIMA, Prophet, LSTM, etc.)
-- Feature engineering with lags and rolling windows
-- Model evaluation (RMSE, MAE, MAPE, backtesting)
-- How to use the RINK platform: upload a CSV, train a model, and request multi-step forecasts
-
-Keep replies concise, accurate, and practical. Use small examples where helpful.`,
-        },
+        { role: "system", content: systemPrompt },
         { role: "user", content: message },
       ],
     });

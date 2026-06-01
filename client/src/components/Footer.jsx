@@ -15,9 +15,9 @@ export default function Footer() {
   return (
     <footer className="mt-24 border-t border-white/10 bg-black/30 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10">
+        <div className="flex flex-col lg:flex-row gap-10 lg:gap-12">
           {/* Brand */}
-          <div className="lg:col-span-4">
+          <div className="lg:w-1/3 lg:flex-none">
             <Link to="/" className="flex items-center gap-2.5">
               <img src={logo} alt="RINK" className="h-9 w-9" />
               <div>
@@ -31,6 +31,12 @@ export default function Footer() {
               Founder-led IT consulting and staffing firm. Cloud, infrastructure,
               cybersecurity, managed services, and data analytics — backed by
               our own production SaaS, RINK Data Analytics.
+            </p>
+            <p className="text-[11px] text-gray-500 mt-3 max-w-sm">
+              <span className="text-gray-400">R</span>esearch ·
+              <span className="text-gray-400"> I</span>nnovation ·
+              <span className="text-gray-400"> N</span>ext-gen ·
+              <span className="text-gray-400"> K</span>nowledge
             </p>
 
             <address className="not-italic text-xs text-gray-500 mt-4 leading-relaxed">
@@ -84,37 +90,39 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Product */}
-          <FooterColumn title="Product" className="lg:col-span-2">
-            <FooterAnchor href={ANALYTICS.workspace}>Workspace</FooterAnchor>
-            <FooterAnchor href="/#features">Features</FooterAnchor>
-            <FooterAnchor href="/#use-cases">Use Cases</FooterAnchor>
-            <FooterAnchor href={ANALYTICS.signUp}>Get Started</FooterAnchor>
-          </FooterColumn>
+          {/* Link columns */}
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-8">
+            {/* Product */}
+            <FooterColumn title="Product">
+              <FooterAnchor href={ANALYTICS.workspace}>Workspace</FooterAnchor>
+              <FooterAnchor href="/#use-cases">Use Cases</FooterAnchor>
+              <FooterAnchor href={ANALYTICS.signUp}>Get Started</FooterAnchor>
+            </FooterColumn>
 
-          {/* Company */}
-          <FooterColumn title="Company" className="lg:col-span-2">
-            <FooterAnchor href="/#about">About</FooterAnchor>
-            <FooterLink to="/contact">Contact</FooterLink>
-            <FooterLink to="/contact">Support</FooterLink>
-            <FooterAnchor href="mailto:hello@rinkglobal.com">hello@rinkglobal.com</FooterAnchor>
-          </FooterColumn>
+            {/* Company */}
+            <FooterColumn title="Company">
+              <FooterLink to="/about">About</FooterLink>
+              <FooterLink to="/careers">Careers</FooterLink>
+              <FooterLink to="/contact">Contact</FooterLink>
+              <FooterAnchor href="mailto:hello@rinkglobal.com">hello@rinkglobal.com</FooterAnchor>
+            </FooterColumn>
 
-          {/* Resources */}
-          <FooterColumn title="Resources" className="lg:col-span-2">
-            <FooterAnchor href="https://docs.rinkglobal.com">Documentation</FooterAnchor>
-            <FooterAnchor href="https://status.rinkglobal.com">Status</FooterAnchor>
-            <FooterAnchor href="/changelog">Changelog</FooterAnchor>
-            <FooterAnchor href="/security">Security</FooterAnchor>
-          </FooterColumn>
+            {/* Resources */}
+            <FooterColumn title="Resources">
+              <FooterAnchor href="https://docs.rinkglobal.com">Documentation</FooterAnchor>
+              <FooterAnchor href="https://status.rinkglobal.com">Status</FooterAnchor>
+              <FooterAnchor href="/changelog">Changelog</FooterAnchor>
+              <FooterAnchor href="/security">Security</FooterAnchor>
+            </FooterColumn>
 
-          {/* Legal */}
-          <FooterColumn title="Legal" className="lg:col-span-2">
-            <FooterLink to="/privacy">Privacy</FooterLink>
-            <FooterLink to="/terms">Terms</FooterLink>
-            <FooterAnchor href="/cookies">Cookies</FooterAnchor>
-            <FooterAnchor href="/dpa">DPA</FooterAnchor>
-          </FooterColumn>
+            {/* Legal */}
+            <FooterColumn title="Legal">
+              <FooterLink to="/privacy">Privacy</FooterLink>
+              <FooterLink to="/terms">Terms</FooterLink>
+              <FooterAnchor href="/cookies">Cookies</FooterAnchor>
+              <FooterAnchor href="/dpa">DPA</FooterAnchor>
+            </FooterColumn>
+          </div>
         </div>
 
         {/* Bottom bar */}

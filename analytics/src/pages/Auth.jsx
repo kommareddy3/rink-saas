@@ -20,7 +20,7 @@ const MODES = {
   RESET_SENT: "reset_sent",
 };
 
-const DEFAULT_NEXT = "/analytics";
+const DEFAULT_NEXT = "/analytics-workspace";
 
 // ---------------------------------------------------------------------------
 // Validators

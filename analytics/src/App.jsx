@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -55,8 +55,10 @@ export default function App() {
               {/* Product surface */}
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
+              {/* Back-compat: old /analytics bookmarks → new workspace path. */}
+              <Route path="/analytics" element={<Navigate to="/analytics-workspace" replace />} />
               <Route
-                path="/analytics"
+                path="/analytics-workspace"
                 element={
                   <ProtectedRoute>
                     <Analytics />

@@ -9,7 +9,7 @@ export const ANALYTICS_URL =
 // Convenience builders so callers don't string-concat.
 export const ANALYTICS = {
   home: ANALYTICS_URL,
-  workspace: `${ANALYTICS_URL}/analytics`,
+  workspace: `${ANALYTICS_URL}/analytics-workspace`,
   signIn: `${ANALYTICS_URL}/auth?mode=login`,
   signUp: `${ANALYTICS_URL}/auth?mode=register`,
   profile: `${ANALYTICS_URL}/profile`,

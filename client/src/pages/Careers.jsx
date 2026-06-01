@@ -11,7 +11,7 @@ const OPENINGS = [
 ];
 
 const WHY = [
-  { title: "Founder-led, not body-shopped", body: "Nikhila (our President) personally interviews every consultant we bring on, and stays close to every engagement. You're not a row in a bench tracker." },
+  { title: "Founder-led, not body-shopped", body: "Nikhila (our founder) personally interviews every consultant we bring on, and stays close to every engagement. You're not a row in a bench tracker." },
   { title: "Choose your contract", body: "C2C through your LLC, W2 with full benefits, or contract-to-hire. Switch later if your situation changes." },
   { title: "Real ownership", body: "You're staffed end-to-end on engagements — discovery to handover. No revolving-door bench politics." },
   { title: "Tools that don't suck", body: "We pay for the good seat licenses, run our own SaaS on the side, and write internal tooling so you can focus on the client problem." },
