@@ -71,7 +71,7 @@ function expandOrigins(list) {
 
 const ALLOWED_ORIGINS = expandOrigins(
   (process.env.ALLOWED_ORIGINS ||
-    "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com,https://analytics.rinkglobal.com")
+    "http://localhost:5173,http://localhost:5001,https://rinkglobal.com,https://www.rinkglobal.com,https://analytics.rinkglobal.com,https://www.analytics.rinkglobal.com,https://*.rinkglobal.com")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)
@@ -104,11 +104,28 @@ if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "your-api-key-here"
 
 // CORS — must run before any other middleware that might throw, so that
 // preflight responses (OPTIONS) always carry the right headers.
+// Always trust the apex domain and any of its subdomains (analytics, docs,
+// www, app, …) over https, so an incomplete ALLOWED_ORIGINS env var can never
+// brick a first-party origin with a CORS rejection.
+const TRUSTED_ROOT = process.env.TRUSTED_ROOT_DOMAIN || "rinkglobal.com";
+function isTrustedOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname;
+    return host === TRUSTED_ROOT || host.endsWith(`.${TRUSTED_ROOT}`);
+  } catch {
+    return false;
+  }
+}
+
 const corsOptions = {
   origin: (origin, cb) => {
     // Same-origin / curl have no Origin header — always allow.
     if (!origin) return cb(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    // Any first-party subdomain (analytics.rinkglobal.com, etc.) is allowed.
+    if (isTrustedOrigin(origin)) return cb(null, true);
     // Surface rejections to the Vercel function logs.
     console.warn(
       `[cors] rejected origin: ${origin} (allow-list: ${ALLOWED_ORIGINS.join(", ")})`
