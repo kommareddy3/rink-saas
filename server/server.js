@@ -161,6 +161,14 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });
 
+// Contact form attachments (resumes, analytics data, job postings, etc.).
+// Larger cap than CSV uploads; held in memory and forwarded to the email API.
+const CONTACT_MAX_BYTES = 20 * 1024 * 1024; // 20 MB per file
+const contactUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: CONTACT_MAX_BYTES, files: 5 },
+});
+
 // Build the headers we forward to FastAPI on every authed call.
 function mlHeaders(req, extra = {}) {
   const headers = {
@@ -566,10 +574,12 @@ function reasonLabel(r) {
   }[r] || r;
 }
 
-app.post("/api/contact", async (req, res) => {
+app.post("/api/contact", contactUpload.array("attachments", 5), async (req, res) => {
   const {
-    name, email, company, reason, message, consent, website, // honeypot
+    name, email, company, reason, message, website, // honeypot
   } = req.body || {};
+  // Multipart sends booleans as strings ("true"/"false").
+  const consent = req.body?.consent === true || req.body?.consent === "true";
 
   // Honeypot — bots fill this. Pretend success so they don't retry.
   if (website && typeof website === "string" && website.trim().length > 0) {
@@ -620,6 +630,9 @@ app.post("/api/contact", async (req, res) => {
   </table>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0;"/>
   <div style="white-space:pre-wrap;color:#1f2937;line-height:1.6;font-size:14px;">${escapeHtml(message)}</div>
+  ${(req.files && req.files.length)
+    ? `<div style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#475569;"><b style="color:#0f172a;">Attachments (${req.files.length}):</b><ul style="margin:8px 0 0;padding-left:18px;">${req.files.map((f) => `<li>${escapeHtml(f.originalname)} — ${(f.size / 1024 / 1024).toFixed(2)} MB</li>`).join("")}</ul></div>`
+    : ""}
 </td></tr>
 <tr><td style="background:#f9fafb;padding:16px 28px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:11px;">
   Reply directly to this email to respond to the sender — Reply-To is set to ${escapeHtml(email)}.
@@ -640,6 +653,14 @@ app.post("/api/contact", async (req, res) => {
         reply_to: email,
         subject,
         html,
+        ...(req.files && req.files.length
+          ? {
+              attachments: req.files.map((f) => ({
+                filename: f.originalname,
+                content: f.buffer.toString("base64"),
+              })),
+            }
+          : {}),
       }),
     });
     const data = await r.json().catch(() => ({}));

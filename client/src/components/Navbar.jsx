@@ -36,16 +36,16 @@ const WHAT_WE_DO = {
 // "About RINK" mega-menu content
 const ABOUT_RINK = {
   Company: [
-    { label: "About us", to: "/about" },
-    { label: "Security & data protection", to: "/security" },
-    { label: "Privacy policy", to: "/privacy" },
-    { label: "Terms of service", to: "/terms" },
-    { label: "Data processing addendum", to: "/dpa" },
-    { label: "Cookies", to: "/cookies" },
+    { label: "About us", to: "/about", hint: "Founder-led, US-based — our story & team" },
+    { label: "Security & data protection", to: "/security", hint: "Encryption, access control, data handling" },
+    { label: "Privacy policy", to: "/privacy", hint: "What we collect and why" },
+    { label: "Terms of service", to: "/terms", hint: "The agreement that governs use" },
+    { label: "Data processing addendum", to: "/dpa", hint: "GDPR/CCPA processing terms" },
+    { label: "Cookies", to: "/cookies", hint: "How we use cookies" },
   ],
   Updates: [
-    { label: "Changelog", to: "/changelog" },
-    { label: "Status", href: "https://status.rinkglobal.com", external: true },
+    { label: "Changelog", to: "/changelog", hint: "What we've shipped recently" },
+    { label: "Status", href: "https://status.rinkglobal.com", external: true, hint: "Live uptime & incidents" },
   ],
 };
 
@@ -211,9 +211,18 @@ export default function Navbar() {
     <header className={`sticky top-0 z-40 ${t.header}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
         <div className="h-16 flex items-center justify-between gap-4">
-          {/* Brand */}
-          <Link to="/" className="flex items-center gap-2.5 group flex-none">
-            <img src={logo} alt="RINK" className="h-8 w-8 rounded-lg" />
+          {/* Brand — always returns to the top of the home page */}
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 group flex-none"
+            onClick={() => {
+              setOpenMega(null);
+              if (location.pathname === "/") {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }
+            }}
+          >
+            <img src={logo} alt="RINK Global Services — home" className="h-8 w-8 rounded-lg" />
             <span className="hidden sm:flex flex-col leading-none">
               <span className={`text-base font-bold tracking-tight group-hover:opacity-90 ${t.brandText}`}>RINK</span>
               <span className={`text-[10px] uppercase tracking-[0.18em] -mt-px ${t.brandSub}`}>Global Services</span>
@@ -237,7 +246,7 @@ export default function Navbar() {
             <NavLink
               to="/careers"
               className={({ isActive }) =>
-                `px-3 py-2 rounded-lg ${t.navLink} ${isActive ? t.navLinkActive : ""}`
+                `px-3 py-2 rounded-lg font-semibold ${t.navLink} ${isActive ? t.navLinkActive : ""}`
               }
               onClick={() => setOpenMega(null)}
             >
@@ -246,7 +255,7 @@ export default function Navbar() {
             <NavLink
               to="/contact"
               className={({ isActive }) =>
-                `px-3 py-2 rounded-lg ${t.navLink} ${isActive ? t.navLinkActive : ""}`
+                `px-3 py-2 rounded-lg font-semibold ${t.navLink} ${isActive ? t.navLinkActive : ""}`
               }
               onClick={() => setOpenMega(null)}
             >
@@ -398,7 +407,7 @@ function NavTrigger({ label, active, onToggle, t }) {
       type="button"
       onClick={onToggle}
       aria-expanded={active}
-      className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition ${
+      className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold transition ${
         active ? t.navTriggerActive : t.navTrigger
       }`}
     >

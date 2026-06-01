@@ -13,7 +13,7 @@ export default function Footer() {
   if (location.pathname.startsWith("/auth")) return null;
 
   return (
-    <footer className="mt-24 border-t border-white/10 bg-black/30 backdrop-blur-sm">
+    <footer className="mt-24 border-t border-slate-800 bg-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="flex flex-col lg:flex-row gap-10 lg:gap-12">
           {/* Brand */}
