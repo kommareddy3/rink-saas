@@ -9,6 +9,10 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ANALYTICS } from "./links";
 
 import Home from "./pages/Home";
+import Industries from "./pages/Industries";
+import HowWeWork from "./pages/HowWeWork";
+import WhyRink from "./pages/WhyRink";
+import FAQ from "./pages/FAQ";
 import About from "./pages/About";
 import Careers from "./pages/Careers";
 import Contact from "./pages/Contact";
@@ -47,6 +51,10 @@ export default function App() {
             <Routes>
               {/* Marketing surface */}
               <Route path="/" element={<Home />} />
+              <Route path="/industries" element={<Industries />} />
+              <Route path="/how-we-work" element={<HowWeWork />} />
+              <Route path="/why-rink" element={<WhyRink />} />
+              <Route path="/faq" element={<FAQ />} />
               <Route path="/about" element={<About />} />
               <Route path="/careers" element={<Careers />} />
               <Route path="/contact" element={<Contact />} />

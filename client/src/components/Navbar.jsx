@@ -56,6 +56,16 @@ const WHAT_WE_THINK = [
   { label: "Security posture", to: "/security", hint: "How we protect your data" },
 ];
 
+// Top-level navigation — simple links to dedicated pages.
+const NAV_LINKS = [
+  { label: "Services", to: "/#services" },
+  { label: "Industries", to: "/industries" },
+  { label: "How we work", to: "/how-we-work" },
+  { label: "Why RINK", to: "/why-rink" },
+  { label: "Careers", to: "/careers" },
+  { label: "Contact us", to: "/contact" },
+];
+
 const Icon = {
   menu: (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -229,44 +239,29 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Desktop nav */}
-          <nav ref={megaRef} className="hidden lg:flex items-center gap-1 text-sm">
-            <NavTrigger
-              label="What we do"
-              active={openMega === "do"}
-              onToggle={() => setOpenMega(openMega === "do" ? null : "do")}
-              t={t}
-            />
-            <NavTrigger
-              label="What we think"
-              active={openMega === "think"}
-              onToggle={() => setOpenMega(openMega === "think" ? null : "think")}
-              t={t}
-            />
-            <NavLink
-              to="/careers"
-              className={({ isActive }) =>
-                `px-3 py-2 rounded-lg font-semibold ${t.navLink} ${isActive ? t.navLinkActive : ""}`
-              }
-              onClick={() => setOpenMega(null)}
-            >
-              Careers
-            </NavLink>
-            <NavLink
-              to="/contact"
-              className={({ isActive }) =>
-                `px-3 py-2 rounded-lg font-semibold ${t.navLink} ${isActive ? t.navLinkActive : ""}`
-              }
-              onClick={() => setOpenMega(null)}
-            >
-              Contact us
-            </NavLink>
-            <NavTrigger
-              label="About RINK"
-              active={openMega === "about"}
-              onToggle={() => setOpenMega(openMega === "about" ? null : "about")}
-              t={t}
-            />
+          {/* Desktop nav — simple top-level links */}
+          <nav className="hidden lg:flex items-center gap-1 text-sm">
+            {NAV_LINKS.map((l) =>
+              l.to.includes("#") ? (
+                <a
+                  key={l.label}
+                  href={l.to}
+                  className={`px-3 py-2 rounded-lg font-semibold ${t.navLink}`}
+                >
+                  {l.label}
+                </a>
+              ) : (
+                <NavLink
+                  key={l.label}
+                  to={l.to}
+                  className={({ isActive }) =>
+                    `px-3 py-2 rounded-lg font-semibold ${t.navLink} ${isActive ? t.navLinkActive : ""}`
+                  }
+                >
+                  {l.label}
+                </NavLink>
+              )
+            )}
           </nav>
 
           {/* User / CTA cluster */}
@@ -321,67 +316,6 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* ============== MEGA MENU PANELS (desktop) ============== */}
-        {openMega === "do" && (
-          <MegaPanel onClose={() => setOpenMega(null)} t={t}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-10 gap-y-6">
-              {Object.entries(WHAT_WE_DO).map(([heading, items]) => (
-                <MegaColumn key={heading} heading={heading} items={items} t={t} />
-              ))}
-            </div>
-            <MegaFooter
-              text="See how it all comes together"
-              cta={{ label: "Explore services", to: "/#services" }}
-              t={t}
-            />
-          </MegaPanel>
-        )}
-
-        {openMega === "think" && (
-          <MegaPanel onClose={() => setOpenMega(null)} t={t}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 max-w-3xl">
-              <MegaColumn heading="Insights & writing" items={WHAT_WE_THINK} t={t} />
-              <div className={`rounded-xl border p-5 ${dark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
-                <div className={`text-xs uppercase tracking-widest font-semibold mb-2 ${t.megaHeading}`}>
-                  Featured
-                </div>
-                <h3 className={`text-base font-semibold ${t.megaTitle}`}>
-                  RINK Data Analytics — under the hood
-                </h3>
-                <p className={`text-sm mt-2 leading-relaxed ${t.megaHint}`}>
-                  Our own SaaS. How forecasting, anomaly detection, segmentation, and routing
-                  fit into client engagements.
-                </p>
-                <a
-                  href={ANALYTICS.workspace}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`mt-3 inline-flex items-center gap-1.5 text-sm font-medium ${dark ? "text-blue-300 hover:text-blue-200" : "text-blue-700 hover:text-blue-800"}`}
-                >
-                  Try the workspace
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </a>
-              </div>
-            </div>
-          </MegaPanel>
-        )}
-
-        {openMega === "about" && (
-          <MegaPanel onClose={() => setOpenMega(null)} t={t}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 max-w-3xl">
-              {Object.entries(ABOUT_RINK).map(([heading, items]) => (
-                <MegaColumn key={heading} heading={heading} items={items} t={t} />
-              ))}
-            </div>
-            <MegaFooter
-              text="Want to work with us?"
-              cta={{ label: "Open roles", to: "/careers" }}
-              t={t}
-            />
-          </MegaPanel>
-        )}
       </div>
 
       {/* ============== MOBILE DRAWER ============== */}
@@ -579,36 +513,20 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
         </div>
 
         <nav className="p-3 space-y-1">
-          <DrawerGroup
-            label="What we do"
-            open={section === "do"}
-            onToggle={() => setSection(section === "do" ? null : "do")}
-          >
-            {Object.entries(WHAT_WE_DO).map(([heading, items]) => (
-              <DrawerSubgroup key={heading} heading={heading} items={items} onClose={onClose} />
-            ))}
-          </DrawerGroup>
-
-          <DrawerGroup
-            label="What we think"
-            open={section === "think"}
-            onToggle={() => setSection(section === "think" ? null : "think")}
-          >
-            <DrawerSubgroup heading="Insights & writing" items={WHAT_WE_THINK} onClose={onClose} />
-          </DrawerGroup>
-
-          <DrawerLink to="/careers" label="Careers" onClose={onClose} />
-          <DrawerLink to="/contact" label="Contact us" onClose={onClose} />
-
-          <DrawerGroup
-            label="About RINK"
-            open={section === "about"}
-            onToggle={() => setSection(section === "about" ? null : "about")}
-          >
-            {Object.entries(ABOUT_RINK).map(([heading, items]) => (
-              <DrawerSubgroup key={heading} heading={heading} items={items} onClose={onClose} />
-            ))}
-          </DrawerGroup>
+          {NAV_LINKS.map((l) =>
+            l.to.includes("#") ? (
+              <a
+                key={l.label}
+                href={l.to}
+                onClick={onClose}
+                className="block px-3 py-2.5 rounded-lg text-sm font-semibold text-white hover:bg-white/5"
+              >
+                {l.label}
+              </a>
+            ) : (
+              <DrawerLink key={l.label} to={l.to} label={l.label} onClose={onClose} />
+            )
+          )}
         </nav>
 
         <div className="border-t border-white/10 p-4 mt-2 space-y-2">

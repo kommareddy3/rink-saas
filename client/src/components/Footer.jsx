@@ -95,15 +95,18 @@ export default function Footer() {
             {/* Product */}
             <FooterColumn title="Product">
               <FooterAnchor href={ANALYTICS.workspace}>Workspace</FooterAnchor>
-              <FooterAnchor href="/#use-cases">Use Cases</FooterAnchor>
+              <FooterLink to="/industries">Industries</FooterLink>
               <FooterAnchor href={ANALYTICS.signUp}>Get Started</FooterAnchor>
             </FooterColumn>
 
             {/* Company */}
             <FooterColumn title="Company">
               <FooterLink to="/about">About</FooterLink>
+              <FooterLink to="/why-rink">Why RINK</FooterLink>
+              <FooterLink to="/how-we-work">How we work</FooterLink>
               <FooterLink to="/careers">Careers</FooterLink>
               <FooterLink to="/contact">Contact</FooterLink>
+              <FooterLink to="/faq">FAQ</FooterLink>
               <FooterAnchor href="mailto:hello@rinkglobal.com">hello@rinkglobal.com</FooterAnchor>
             </FooterColumn>
 
