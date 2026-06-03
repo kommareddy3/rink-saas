@@ -19,10 +19,10 @@ before any bytes leave your browser. The same check is repeated on the
 gateway and the ML service.
 
 > 🔒 **Your file is encrypted and scanned.** Before anything is stored, the
-> ML service scans the upload and rejects binaries, archives, executables,
-> and anything that isn't plain-text CSV. Accepted files are then
-> **encrypted at rest** — the plaintext CSV never touches our disk. Full
-> details on the [Security](/security) page.
+> ML service scans the upload (format guard + VirusTotal) and rejects
+> binaries, archives, executables, malware, and anything that isn't plain-text
+> CSV. Accepted files are then **encrypted at rest** — the plaintext CSV never
+> reaches storage. Full details on the [Security](/security) page.
 
 ## Date column detection
 
@@ -89,14 +89,29 @@ endpoint, which also reports `date_min` / `date_max` and an
 
 ## What happens after upload
 
-1. The file is forwarded to the ML service (which streams it to disk under
-   `/var/data/users/<your_uuid>/uploaded.csv`).
+1. The file is forwarded to the ML service, which **virus-scans** it
+   (VirusTotal), **encrypts** it, and stores it under
+   `users/<your_uuid>/uploaded.csv` in object storage (Cloudflare R2, or a
+   local-disk fallback).
 2. The model auto-trains. Status toast: *"Trained on N rows · weekly
    cadence · RMSE … · MAE …"*
 3. The chart and KPIs refresh. The prediction input pre-fills with the
    most recent N values.
 
-Subsequent re-uploads **replace** the previous file and model.
+## Your file library
+
+Every file you upload is kept in your encrypted **file library** in the
+bucket — uploading a new file no longer discards the previous one. The newest
+upload becomes the **active** dataset that the tools analyze.
+
+From the **My data** panel in the workspace (and in your Profile) you can:
+
+- See every file you've uploaded (name, size, row count, date) and which is active.
+- **Use for analysis** — switch the active dataset to any stored file (re-trains automatically).
+- **Delete** a single file, all files, or everything (files + reports) at once.
+
+Files are retained for up to **90 days**, then auto-deleted; you can delete
+sooner anytime.
 
 ## Switching columns
 
@@ -117,13 +132,14 @@ Uploading a new CSV clears the saved choice.
 
 ## Storage and cleanup
 
-- Your CSV is **encrypted at rest** before it is written to disk (when an
-  encryption key is configured — always on in production). See
+- Your CSV is **virus-scanned then encrypted** before it reaches storage
+  (when an encryption key is configured — always on in production). See
   [Security → encryption at rest](/security#encryption-at-rest).
-- Each user's data is isolated under `/var/data/users/<user_id>/` — other
-  users **cannot** see or access your data.
-- Files are deleted automatically when you sign out (manual or after the
-  4-hour idle timeout).
+- Each user's data is isolated under `users/<user_id>/` — other users
+  **cannot** see or access your data.
+- Files are retained for up to **90 days** and then deleted automatically.
+  You can delete everything sooner from your profile. Signing out does not
+  delete your data.
 - Forecast values can be exported to CSV from the Forecast Detail card —
   see [the FAQ](/faq#can-i-export-my-forecast-values).
 

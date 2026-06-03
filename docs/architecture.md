@@ -14,8 +14,8 @@ interface to the next.
         │                                                               │
         └── Groq LLM (AI Assistant proxied through gateway)             │
                                                                         │
-                                                  Per-user state on disk
-                                                  /var/data/users/<uuid>/
+                              Per-user state (encrypted) in Cloudflare R2
+                                                  users/<uuid>/
 ```
 
 ## Tier 1 — React frontend
@@ -63,19 +63,23 @@ Express app) at `api.rinkglobal.com`.
 **Stack:** Python 3.11 + FastAPI + scikit-learn + pandas + cryptography
 (Fernet, for encryption at rest).
 
-**Hosted on:** Render Starter ($7/mo) with a 1 GB persistent disk at
-`/var/data`.
+**Hosted on:** Render Starter ($7/mo). Persistent user data lives in
+**Cloudflare R2** object storage (with a local-disk fallback for dev).
 
 **Responsibilities:**
 
-- **Upload scanning + encryption at rest.** Uploads are scanned for
-  binary/archive/executable signatures and null bytes (rejected with
-  `400`), then **encrypted with Fernet (AES-128-CBC + HMAC)** before the
-  first disk write. Plaintext never lands on disk. See [Security](/security).
-- Per-user file storage under `/var/data/users/<user_id>/`:
-  - `uploaded.csv` — the user's last-uploaded dataset, **encrypted at rest**.
-  - `model.joblib` — the trained `GradientBoostingRegressor`.
-  - `meta.joblib` — column / date / group / frequency metadata.
+- **Virus scan + encryption at rest.** Uploads are first checked for
+  binary/archive/executable signatures and null bytes (rejected with `400`),
+  then scanned by **VirusTotal** (malicious files rejected with `422`), then
+  **encrypted with Fernet (AES-128-CBC + HMAC)** before they reach storage.
+  Plaintext never lands in the bucket. See [Security](/security).
+- Per-user storage under the `users/<user_id>/` key namespace:
+  - `uploaded.csv` — the user's last-uploaded dataset, **encrypted at rest** (R2).
+  - `reports/<report_id>/blob` + `meta.json` — generated reports, **encrypted at rest** (R2).
+  - `model.joblib` / `meta.joblib` — the trained model + metadata (regenerable working cache).
+- **Report storage** (`/reports`) — store, list, download, and delete the
+  user's generated reports.
+- **Retention** — an R2 lifecycle rule auto-deletes objects after **90 days**.
 - **Schema profiling** (`/analyze`) — date/value detection and
   panel/ID-column detection for grouped data.
 - Date column detection and chronological sort.
@@ -89,7 +93,8 @@ Express app) at `api.rinkglobal.com`.
 - Feature engineering: lags `[1, 2, 3, 5, 7]`, rolling means `[3, 7]`.
 - Train / validate / save / load.
 - Recursive multi-step prediction (up to 1825 steps).
-- `DELETE /user-data` — wipes the calling user's directory.
+- `DELETE /user-data` — wipes the calling user's entire namespace (datasets +
+  reports) from storage and disk.
 
 ## Authentication flow
 
@@ -109,24 +114,26 @@ Supabase's token TTL — see [Accounts](/guides/account#idle-timeout).
 ## Data lifecycle
 
 ```
-                                signs up         uploads CSV       trained model      signs out / idle
+                                signs up      uploads CSV / saves report     delete / 90-day expiry
 User
-                                    │                │                   │                    │
-                                    ▼                ▼                   ▼                    ▼
-Supabase                       creates UUID                                              token revoked
+                                    │                │                              │
+                                    ▼                ▼                              ▼
+Supabase                       creates UUID                                    (data untouched on sign-out)
                                     │
                                     ▼
-Express gateway                                  X-User-ID to FastAPI
+Express gateway                              X-User-ID to FastAPI
                                                     │
                                                     ▼
-FastAPI                                       /var/data/users/<uuid>/
-                                                  uploaded.csv         model.joblib           rmtree()
+FastAPI                            scan → encrypt → Cloudflare R2: users/<uuid>/
+                                       uploaded.csv   reports/<id>/   ⏳ 90-day lifecycle / DELETE /user-data
 ```
 
-Users own their data while signed in. The moment they sign out (manual or
-idle), the gateway issues `DELETE /api/user-data` and the ML service
-removes their directory. While stored, the CSV sits **encrypted at rest**
-and travels only over TLS — see [Security & data protection](/security)
+Users own their data. It is **not** deleted on sign-out — datasets and
+reports persist (encrypted) for up to **90 days** so users can return to
+their work, after which an R2 lifecycle rule removes them. Users can delete
+everything sooner via `DELETE /api/user-data`. While stored, every blob sits
+**encrypted at rest** and travels only over TLS — see
+[Security & data protection](/security)
 for the full model.
 
 ## Deployment topology

@@ -1,29 +1,36 @@
 # Security & data protection
 
 Your data is yours. RINK is built so that the files you upload are
-**encrypted at rest, encrypted in transit, isolated to your account, and
-deleted automatically when you sign out.** This page explains exactly how
-that works, in plain language, so you can share data with confidence.
+**virus-scanned before storage, encrypted at rest, encrypted in transit,
+isolated to your account, retained for at most 90 days, and deletable on
+demand.** This page explains exactly how that works, in plain language, so
+you can share data with confidence.
 
-> **The short version:** every CSV you upload is encrypted *before* it
-> touches our disk, can only be read back into memory by the service that
-> serves your own forecasts, travels only over HTTPS, lives in a folder
-> keyed to your user ID that no other user can reach, and is wiped when
-> your session ends.
+> **The short version:** every file you upload is scanned for malware, then
+> encrypted *before* it reaches storage, can only be read back into memory by
+> the service that serves your own forecasts, travels only over HTTPS, lives
+> under a key namespace scoped to your user ID that no other user can reach,
+> is automatically deleted after 90 days, and can be wiped instantly whenever
+> you ask.
 
 ## Encryption at rest
 
-When you upload a file, RINK encrypts the raw bytes **before they are
-written to disk**. The plaintext CSV never lands on the server's storage —
-only the encrypted form does.
+When you upload a file, RINK encrypts the raw bytes **before they reach
+storage**. The plaintext CSV is never persisted — only the encrypted form is,
+whether storage is cloud object storage (Cloudflare R2) or a local disk
+fallback. The storage provider never sees your plaintext.
 
 | Property | Detail |
 | -------- | ------ |
 | Scheme | [Fernet](https://cryptography.io/en/latest/fernet/) — **AES-128 in CBC mode** for confidentiality, with an **HMAC-SHA256** authentication tag for integrity |
 | Library | The audited [`cryptography`](https://pypi.org/project/cryptography/) package (pinned in `ml_api/requirements.txt`) |
-| When | At upload time, in memory, before the first disk write |
-| Key location | A secret key held only in the ML service's environment (`RINK_ENCRYPTION_KEY`) — never stored alongside the data, never in the database, never in the repo |
-| Decryption | Only transiently, in RAM, when you request a forecast or chart of your own data |
+| When | At upload time, in memory, before the bytes are written to storage |
+| Where | Cloudflare R2 (object storage) when configured, else local disk — encrypted either way |
+| Key location | A secret key held only in the ML service's environment (`RINK_ENCRYPTION_KEY`) — never stored alongside the data, never in the database, never in the repo, never in the storage bucket |
+| Decryption | Only transiently, in RAM, when you request a forecast, chart, or report download of your own data |
+
+This applies to **both** the datasets you upload **and** the reports you
+generate — every blob is encrypted with the same scheme before it is stored.
 
 Because the file is sealed with an HMAC tag, any tampering with the
 stored bytes is detected on read — a modified file will fail to decrypt
@@ -77,50 +84,68 @@ Every hop is HTTPS/TLS:
 Your CSV is never transmitted or stored in clear text at any point in the
 pipeline.
 
-## Upload scanning
+## Virus & upload scanning
 
-RINK only accepts plain-text CSVs, so every upload is scanned **before it
-is stored**. We reject anything that isn't a real CSV:
+Every upload passes **two checks before it is stored**:
 
-- Executables and libraries (Windows PE/`MZ`, Linux `ELF`, Java/Mach-O).
-- Archives and compressed files (ZIP/XLSX/DOCX, RAR, gzip).
-- Documents and images (PDF, PNG, JPEG, BMP).
-- Files containing binary/null bytes or that aren't decodable as text.
+1. **Format/signature guard.** Datasets must be plain-text CSVs, so we reject
+   anything that isn't: executables and libraries (Windows PE/`MZ`, Linux
+   `ELF`, Java/Mach-O), archives (ZIP/XLSX/DOCX, RAR, gzip), documents and
+   images (PDF, PNG, JPEG, BMP), and files containing binary/null bytes or
+   that aren't decodable as text.
 
-Anything matching these signatures is rejected with a clear error and is
-never written to disk. This closes the obvious holes for a parse-only
-pipeline. (It is a signature/format guard, not a full antivirus engine —
-see the ClamAV note in the deployment guide if you need AV scanning on a
-self-hosted deployment.)
+2. **Antivirus scan ([VirusTotal](https://www.virustotal.com)).** The file's
+   SHA-256 is computed and looked up against VirusTotal's multi-engine
+   database. Known-clean files pass instantly at no cost; files flagged as
+   malicious by one or more engines are **rejected with a 422 and never
+   stored**. (Optionally, never-before-seen files can be uploaded to
+   VirusTotal for live analysis.)
+
+Both checks run before encryption and before the file reaches storage. Stored
+reports are scanned the same way. If the antivirus service is temporarily
+unreachable, the default is fail-open (allow + log) so a scanner outage can't
+block legitimate work; operators can switch this to fail-closed
+(`VT_FAIL_CLOSED=1`). Scanning activates when a `VIRUSTOTAL_API_KEY` is set —
+`GET /health` reports `virus_scanning: true/false`.
 
 ## Per-user isolation
 
-Each user's data is stored in a directory keyed to their Supabase user
-UUID:
+Each user's data is stored under a key namespace scoped to their Supabase
+user UUID:
 
 ```
-/var/data/users/<your_uuid>/
-├── uploaded.csv     # encrypted at rest
-├── model.joblib     # your trained model
-└── meta.joblib      # column / date / group / cadence metadata
+users/<your_uuid>/
+├── uploaded.csv            # your active dataset — encrypted at rest
+├── datasets/               # your uploaded file library (keep many; pick one active)
+│   └── <file_id>/          # each file — encrypted at rest
+└── reports/
+    └── <report_id>/        # each saved report — encrypted at rest
 ```
 
-Every data-touching request must carry a valid `X-User-ID`, and the
-service scopes **all** file paths to that ID. There is no endpoint that
-returns another user's files, and the ID format is strictly validated
-(`^[A-Za-z0-9_-]{8,128}$`) to prevent path traversal.
+(Trained models and metadata are kept as a regenerable working cache.) Every
+data-touching request must carry a valid `X-User-ID`, and the service scopes
+**all** keys to that ID. There is no endpoint that returns another user's
+files, and the ID format is strictly validated
+(`^[A-Za-z0-9_-]{8,128}$`) to prevent traversal.
 
-## Automatic deletion
+## Retention & deletion
 
-Your data does not linger:
+Your data is kept only as long as it's useful, then removed automatically:
 
-- **On sign-out** (manual or via the **4-hour idle timeout**), the gateway
-  calls `DELETE /api/user-data` and the ML service removes your entire
-  directory with `rmtree` — CSV, model, and metadata.
-- **On re-upload**, your previous file and model are replaced.
+- **90-day retention.** Datasets and reports are retained for up to **3
+  months**, then deleted automatically by a storage **lifecycle rule**. This
+  lets you return to your work and re-download past reports across sessions,
+  without keeping anything indefinitely.
+- **Delete on request.** From the workspace or your profile you can delete
+  **any single uploaded file** (`DELETE /api/datasets/:id`), **all files**
+  (`DELETE /api/datasets`), **any single report** (`DELETE /api/reports/:id`),
+  or **everything at once** (`DELETE /api/user-data`, which removes your entire
+  `users/<id>/` namespace from cloud storage and disk).
+- **On re-upload**, your previous dataset and model are replaced.
 
-So in normal use, your data exists on the server only for the duration of
-your active session.
+> Sign-out no longer wipes your data — retention and on-demand deletion give
+> you control while keeping your datasets and reports available when you
+> return.
 
 ## Authentication
 
@@ -140,18 +165,24 @@ your active session.
 - We do **not** sell or share your uploaded data.
 - We do **not** train a shared/global model on your data — every model is
   fit only on *your* dataset and stored only under *your* user ID.
-- We do **not** keep your file after you sign out.
-- The AI assistant is scoped to forecasting help and is **not** sent your
-  uploaded dataset.
+- We do **not** keep your files longer than 90 days, and you can delete them
+  sooner at any time.
+- The AI assistant is scoped to RINK and forecasting help and is **not** sent
+  your uploaded dataset.
 
 ## Where your data lives (subprocessors)
 
 | Component | Provider | What it holds |
 | --------- | -------- | ------------- |
-| Forecasting + storage | Render | Your encrypted CSV, model, and metadata (transient, per-session) |
+| File & report storage | Cloudflare R2 | Your **encrypted** datasets and reports (≤ 90-day retention). Cloudflare never sees plaintext |
+| Forecasting / ML | Render | Decrypts your data in memory to train and forecast; holds a regenerable model cache |
 | Gateway | Vercel | Nothing persistent — files are streamed through in memory only |
+| Virus scanning | VirusTotal | A SHA-256 hash, and (only if enabled for unseen files) the file itself for analysis |
 | Authentication | Supabase | Your account record (email, auth identifiers) — **not** your uploaded files |
 | AI assistant | Groq | Only the questions you type into the assistant — **not** your dataset |
+
+> Operator setup for R2, encryption, scanning, and the 90-day lifecycle rule
+> is documented in [Cloud storage setup](/CLOUD_STORAGE_SETUP).
 
 ## Reporting a vulnerability
 

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Badge, Button, Card, SectionHeader } from "./ToolUI";
 import logo from "../assets/rink-logo.png";
+import api from "../api";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -190,6 +191,28 @@ export default function ReportStudio({ report, disabledMessage = "Run an analysi
   const [clientName, setClientName] = useState("");
   const [objective, setObjective] = useState("");
   const [copied, setCopied] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState(null); // null | "saving" | "saved" | "error"
+
+  // Persist a copy of an exported report to encrypted cloud storage. Runs
+  // fire-and-forget after the user downloads, so they always get the file even
+  // if the upload is slow or offline.
+  const saveReport = async (filename, content, type, fmt, title) => {
+    try {
+      setCloudStatus("saving");
+      const fd = new FormData();
+      fd.append("file", new Blob([content], { type }), filename);
+      if (title) fd.append("title", title);
+      if (fmt) fd.append("fmt", fmt);
+      await api.post("/api/reports", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setCloudStatus("saved");
+      setTimeout(() => setCloudStatus(null), 2500);
+    } catch {
+      setCloudStatus("error");
+      setTimeout(() => setCloudStatus(null), 4000);
+    }
+  };
 
   const meta = useMemo(
     () => ({
@@ -232,20 +255,27 @@ export default function ReportStudio({ report, disabledMessage = "Run an analysi
 
   const downloadMarkdown = () => {
     if (!preparedReport) return;
-    downloadFile(
-      `${slugify(preparedReport.title)}.md`,
-      buildMarkdown(preparedReport, meta),
-      "text/markdown;charset=utf-8"
-    );
+    const name = `${slugify(preparedReport.title)}.md`;
+    const content = buildMarkdown(preparedReport, meta);
+    downloadFile(name, content, "text/markdown;charset=utf-8");
+    saveReport(name, content, "text/markdown", "md", preparedReport.title);
   };
 
   const downloadHtml = () => {
     if (!preparedReport) return;
-    downloadFile(
-      `${slugify(preparedReport.title)}.html`,
-      buildHtml(preparedReport, meta),
-      "text/html;charset=utf-8"
-    );
+    const name = `${slugify(preparedReport.title)}.html`;
+    const content = buildHtml(preparedReport, meta);
+    downloadFile(name, content, "text/html;charset=utf-8");
+    saveReport(name, content, "text/html", "html", preparedReport.title);
+  };
+
+  // Save the structured report data + AI narrative as JSON so it can be
+  // re-rendered later, independent of any single export format.
+  const saveJsonBundle = () => {
+    if (!preparedReport) return;
+    const bundle = { meta, report: preparedReport, savedAt: new Date().toISOString() };
+    const name = `${slugify(preparedReport.title)}.json`;
+    saveReport(name, JSON.stringify(bundle, null, 2), "application/json", "json", preparedReport.title);
   };
 
   const printReport = () => {
@@ -331,12 +361,31 @@ export default function ReportStudio({ report, disabledMessage = "Run an analysi
             <ReportList title="Report notes" items={preparedReport.notes} />
           </div>
 
-          <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
             <Button variant="primary" onClick={downloadHtml}>Download report</Button>
             <Button variant="ghost" onClick={downloadMarkdown}>Export Markdown</Button>
             <Button variant="ghost" onClick={printReport}>Print / save PDF</Button>
+            <Button variant="ghost" onClick={saveJsonBundle}>Save to cloud</Button>
             <Button variant="ghost" onClick={copySummary}>{copied ? "Copied" : "Copy summary"}</Button>
+            {cloudStatus && (
+              <span
+                className={`text-xs ${
+                  cloudStatus === "error"
+                    ? "text-red-300"
+                    : cloudStatus === "saved"
+                    ? "text-emerald-300"
+                    : "text-gray-400"
+                }`}
+              >
+                {cloudStatus === "saving" && "Saving to secure storage…"}
+                {cloudStatus === "saved" && "Saved to your encrypted cloud storage ✓"}
+                {cloudStatus === "error" && "Couldn't save to cloud (your download still worked)."}
+              </span>
+            )}
           </div>
+          <p className="text-[11px] text-gray-500">
+            Downloaded reports are also saved to your encrypted cloud storage and kept for up to 90 days. Delete them anytime from your profile.
+          </p>
         </div>
       )}
     </Card>

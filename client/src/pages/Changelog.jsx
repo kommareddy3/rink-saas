@@ -44,7 +44,7 @@ const RELEASES = [
       { kind: "added", text: "Profile page: edit name/phone/email, change password, manage passkeys, danger zone." },
       { kind: "added", text: "Custom email templates (confirm, reset, magic link, change-email) installed in Supabase." },
       { kind: "added", text: "Welcome email via Resend on first authenticated session (idempotent via user metadata flag)." },
-      { kind: "changed", text: "4-hour idle timeout with cross-tab activity tracking; sign-out wipes server data automatically." },
+      { kind: "changed", text: "4-hour idle timeout with cross-tab activity tracking." },
     ],
   },
   {

@@ -91,8 +91,9 @@ long as you stay signed in, you can:
 - Generate as many forecasts as you want.
 - Reload the page; everything is restored.
 
-Files are deleted automatically when you sign out (or after 4 hours of
-inactivity). To keep your dataset, simply stay signed in.
+Your dataset and reports are retained (encrypted) for up to **90 days**, then
+deleted automatically — or you can remove them instantly from your profile.
+Signing out does not delete your data, so it's there when you return.
 
 ## What's next?
 

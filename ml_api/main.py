@@ -24,18 +24,24 @@ Endpoints:
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
 import re
 import shutil
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+import storage as blobstore
+import scanning
 
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from scipy import stats as scipy_stats
@@ -250,6 +256,12 @@ class UserPaths:
     dataset: Path
     model: Path
     meta: Path
+    # Object-storage keys (R2 or local-disk fallback handled by blobstore).
+    dataset_key: str = ""          # the ACTIVE dataset the ML pipeline reads
+    reports_prefix: str = ""
+    datasets_prefix: str = ""      # the user's library of uploaded files
+    active_key: str = ""           # pointer JSON: which library file is active
+    user_prefix: str = ""
 
     def ensure_dir(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -277,6 +289,11 @@ def _get_paths(request: Request) -> UserPaths:
         dataset=user_dir / "uploaded.csv",
         model=user_dir / "model.joblib",
         meta=user_dir / "meta.joblib",
+        dataset_key=f"users/{user_id}/uploaded.csv",
+        reports_prefix=f"users/{user_id}/reports/",
+        datasets_prefix=f"users/{user_id}/datasets/",
+        active_key=f"users/{user_id}/active.json",
+        user_prefix=f"users/{user_id}/",
     )
 
 
@@ -482,13 +499,14 @@ def _apply_filters(
 
 
 def _load_dataset(paths: UserPaths) -> pd.DataFrame:
-    if not paths.dataset.exists():
+    stored = blobstore.get(paths.dataset_key)
+    if stored is None:
         raise HTTPException(
             status_code=404,
             detail="No dataset uploaded yet. POST a CSV to /upload first.",
         )
     try:
-        raw = _decrypt_bytes(paths.dataset.read_bytes())
+        raw = _decrypt_bytes(stored)
         df = pd.read_csv(io.BytesIO(raw))
     except HTTPException:
         raise
@@ -611,6 +629,8 @@ def health() -> dict:
         "user_count": sum(1 for _ in USERS_DIR.glob("*")) if USERS_DIR.exists() else 0,
         "gateway_secret_required": bool(GATEWAY_SECRET),
         "encryption_at_rest": ENCRYPTION_ENABLED,
+        "storage_backend": blobstore.backend_name(),
+        "virus_scanning": scanning.enabled(),
     }
 
 
@@ -627,23 +647,151 @@ async def upload(request: Request, file: UploadFile = File(...)) -> dict:
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 10MB).")
 
-    # 1. Malware / corruption guard.
+    # 1. Lightweight signature/corruption guard.
     _scan_content(contents)
 
-    # 2. Must parse as a real CSV.
+    # 2. Antivirus scan (VirusTotal) before anything is stored.
+    scanning.scan(contents, file.filename)
+
+    # 3. Must parse as a real CSV.
     try:
-        pd.read_csv(io.BytesIO(contents))
+        rows = int(len(pd.read_csv(io.BytesIO(contents))))
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid CSV: {exc}")
 
-    # 3. Encrypt before it touches disk.
-    paths.ensure_dir()
-    paths.dataset.write_bytes(_encrypt_bytes(contents))
-    log.info(
-        "[user=%s] stored dataset (%d bytes, encrypted=%s)",
-        paths.user_id, len(contents), ENCRYPTION_ENABLED,
+    # 4. Encrypt, then persist to the user's file LIBRARY (so multiple uploads
+    #    are all retained), and make this upload the ACTIVE dataset the ML
+    #    pipeline reads.
+    enc = _encrypt_bytes(contents)
+    file_id = uuid.uuid4().hex
+    file_meta = {
+        "file_id": file_id,
+        "filename": file.filename,
+        "size": len(contents),
+        "rows": rows,
+        "content_type": file.content_type or "text/csv",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    blobstore.put(f"{paths.datasets_prefix}{file_id}/blob", enc, "application/octet-stream")
+    blobstore.put(
+        f"{paths.datasets_prefix}{file_id}/meta.json",
+        json.dumps(file_meta).encode("utf-8"),
+        "application/json",
     )
-    return {"status": "uploaded", "bytes": len(contents), "encrypted": ENCRYPTION_ENABLED}
+    # Active dataset = this file (the existing analyze/train/predict pipeline
+    # reads `dataset_key`).
+    blobstore.put(paths.dataset_key, enc, "application/octet-stream")
+    blobstore.put(paths.active_key, json.dumps({"file_id": file_id}).encode("utf-8"), "application/json")
+    log.info(
+        "[user=%s] stored dataset %s (%d bytes, rows=%d, encrypted=%s, backend=%s)",
+        paths.user_id, file_id, len(contents), rows, ENCRYPTION_ENABLED, blobstore.backend_name(),
+    )
+    return {
+        "status": "uploaded",
+        "file_id": file_id,
+        "bytes": len(contents),
+        "rows": rows,
+        "encrypted": ENCRYPTION_ENABLED,
+        "scanned": scanning.enabled(),
+        "storage": blobstore.backend_name(),
+    }
+
+
+# ===========================================================================
+# Dataset library — multiple uploaded files, with an active selection
+# ===========================================================================
+
+def _active_file_id(paths: UserPaths) -> Optional[str]:
+    raw = blobstore.get(paths.active_key)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8")).get("file_id")
+    except Exception:
+        return None
+
+
+@app.get("/datasets")
+def list_datasets(request: Request) -> dict:
+    """List every file the user has uploaded, marking the active one."""
+    paths = _get_paths(request)
+    active = _active_file_id(paths)
+    out = []
+    for key in blobstore.list_prefix(paths.datasets_prefix):
+        if not key.endswith("/meta.json"):
+            continue
+        raw = blobstore.get(key)
+        if not raw:
+            continue
+        try:
+            meta = json.loads(raw.decode("utf-8"))
+        except Exception:
+            continue
+        meta["active"] = meta.get("file_id") == active
+        out.append(meta)
+    out.sort(key=lambda m: m.get("created_at", ""), reverse=True)
+    return {"datasets": out, "count": len(out), "active_file_id": active}
+
+
+@app.post("/datasets/{file_id}/activate")
+def activate_dataset(request: Request, file_id: str) -> dict:
+    """Make a stored file the active dataset for analysis/training."""
+    paths = _get_paths(request)
+    if not re.match(r"^[A-Za-z0-9]{8,64}$", file_id):
+        raise HTTPException(status_code=400, detail="Invalid file id.")
+    blob = blobstore.get(f"{paths.datasets_prefix}{file_id}/blob")
+    if blob is None:
+        raise HTTPException(status_code=404, detail="File not found.")
+    # Point the ML pipeline at this file and clear any stale trained model so
+    # the next train runs against the newly-activated data.
+    blobstore.put(paths.dataset_key, blob, "application/octet-stream")
+    blobstore.put(paths.active_key, json.dumps({"file_id": file_id}).encode("utf-8"), "application/json")
+    for p in (paths.model, paths.meta):
+        try:
+            if p.exists():
+                p.unlink()
+        except Exception:
+            pass
+    log.info("[user=%s] activated dataset %s", paths.user_id, file_id)
+    return {"status": "activated", "file_id": file_id}
+
+
+def _clear_active_dataset(paths: UserPaths) -> None:
+    """Drop the active dataset + trained model (used when the active file is
+    deleted)."""
+    blobstore.delete(paths.dataset_key)
+    blobstore.delete(paths.active_key)
+    for p in (paths.model, paths.meta):
+        try:
+            if p.exists():
+                p.unlink()
+        except Exception:
+            pass
+
+
+@app.delete("/datasets/{file_id}")
+def delete_dataset(request: Request, file_id: str) -> dict:
+    """Delete a single uploaded file from the library."""
+    paths = _get_paths(request)
+    if not re.match(r"^[A-Za-z0-9]{8,64}$", file_id):
+        raise HTTPException(status_code=400, detail="Invalid file id.")
+    removed = blobstore.delete_prefix(f"{paths.datasets_prefix}{file_id}/")
+    if not removed:
+        raise HTTPException(status_code=404, detail="File not found.")
+    if _active_file_id(paths) == file_id:
+        _clear_active_dataset(paths)
+    log.info("[user=%s] deleted dataset %s", paths.user_id, file_id)
+    return {"status": "deleted", "file_id": file_id}
+
+
+@app.delete("/datasets")
+def delete_all_datasets(request: Request) -> dict:
+    """Delete every uploaded file (and the active dataset + model)."""
+    paths = _get_paths(request)
+    removed = blobstore.delete_prefix(paths.datasets_prefix)
+    _clear_active_dataset(paths)
+    log.info("[user=%s] deleted all datasets (objects=%d)", paths.user_id, removed)
+    return {"status": "deleted", "objects_removed": removed}
 
 
 @app.post("/analyze", response_model=AnalyzeResponse)
@@ -1031,14 +1179,145 @@ def get_data(
 
 @app.delete("/user-data")
 def delete_user_data(request: Request) -> dict:
-    """Permanently remove the calling user's uploaded CSV and trained model."""
+    """Permanently remove ALL of the calling user's data — uploaded CSV, trained
+    model, and every stored report — from both object storage and local disk."""
     paths = _get_paths(request)
-    removed = False
+    # Object storage (R2 or local-disk fallback): wipe the whole user prefix.
+    objects_removed = blobstore.delete_prefix(paths.user_prefix)
+    # Local working files (model/meta caches) that live outside the blob layer.
+    disk_removed = False
     if paths.dir.exists():
         shutil.rmtree(paths.dir, ignore_errors=True)
-        removed = True
-    log.info("[user=%s] data deleted=%s", paths.user_id, removed)
-    return {"status": "deleted", "removed": removed}
+        disk_removed = True
+    log.info(
+        "[user=%s] data deleted (objects=%d, disk=%s)",
+        paths.user_id, objects_removed, disk_removed,
+    )
+    return {"status": "deleted", "removed": objects_removed > 0 or disk_removed,
+            "objects_removed": objects_removed}
+
+
+# ===========================================================================
+# Reports — store user-generated reports (PDF / exports / JSON+narrative)
+# ===========================================================================
+
+# Reports can be larger than CSV uploads (PDFs, XLSX, bundled exports).
+MAX_REPORT_BYTES = 25 * 1024 * 1024  # 25 MB
+
+
+class ReportMeta(BaseModel):
+    report_id: str
+    filename: str
+    content_type: str
+    fmt: str
+    size: int
+    title: Optional[str] = None
+    created_at: str
+
+
+def _report_blob_key(paths: UserPaths, report_id: str) -> str:
+    return f"{paths.reports_prefix}{report_id}/blob"
+
+
+def _report_meta_key(paths: UserPaths, report_id: str) -> str:
+    return f"{paths.reports_prefix}{report_id}/meta.json"
+
+
+@app.post("/reports")
+async def create_report(
+    request: Request,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    fmt: str = Form(""),
+) -> dict:
+    """Persist a generated report. The blob is encrypted at rest; a small
+    plaintext metadata sidecar makes listing cheap."""
+    paths = _get_paths(request)
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Report file is empty.")
+    if len(contents) > MAX_REPORT_BYTES:
+        raise HTTPException(status_code=413, detail="Report too large (max 25MB).")
+
+    # Reports are user-authored artifacts, but scan anyway for safety.
+    scanning.scan(contents, file.filename or "report")
+
+    report_id = uuid.uuid4().hex
+    content_type = file.content_type or "application/octet-stream"
+    inferred_fmt = (fmt or (file.filename or "").rsplit(".", 1)[-1] or "bin").lower()
+    meta = ReportMeta(
+        report_id=report_id,
+        filename=file.filename or f"report.{inferred_fmt}",
+        content_type=content_type,
+        fmt=inferred_fmt,
+        size=len(contents),
+        title=title or None,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    blobstore.put(_report_blob_key(paths, report_id), _encrypt_bytes(contents), content_type)
+    blobstore.put(
+        _report_meta_key(paths, report_id),
+        json.dumps(meta.model_dump()).encode("utf-8"),
+        "application/json",
+    )
+    log.info("[user=%s] stored report %s (%d bytes, backend=%s)",
+             paths.user_id, report_id, len(contents), blobstore.backend_name())
+    return {"status": "stored", **meta.model_dump()}
+
+
+@app.get("/reports")
+def list_reports(request: Request) -> dict:
+    """List the calling user's stored reports (metadata only)."""
+    paths = _get_paths(request)
+    out = []
+    for key in blobstore.list_prefix(paths.reports_prefix):
+        if not key.endswith("/meta.json"):
+            continue
+        raw = blobstore.get(key)
+        if not raw:
+            continue
+        try:
+            out.append(json.loads(raw.decode("utf-8")))
+        except Exception:
+            continue
+    out.sort(key=lambda m: m.get("created_at", ""), reverse=True)
+    return {"reports": out, "count": len(out)}
+
+
+@app.get("/reports/{report_id}")
+def get_report(request: Request, report_id: str) -> Response:
+    """Download a single stored report (decrypted on the fly)."""
+    paths = _get_paths(request)
+    if not re.match(r"^[A-Za-z0-9]{8,64}$", report_id):
+        raise HTTPException(status_code=400, detail="Invalid report id.")
+    meta_raw = blobstore.get(_report_meta_key(paths, report_id))
+    blob = blobstore.get(_report_blob_key(paths, report_id))
+    if meta_raw is None or blob is None:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    meta = json.loads(meta_raw.decode("utf-8"))
+    data = _decrypt_bytes(blob)
+    return Response(
+        content=data,
+        media_type=meta.get("content_type", "application/octet-stream"),
+        headers={
+            "Content-Disposition": f'attachment; filename="{meta.get("filename", "report")}"'
+        },
+    )
+
+
+@app.delete("/reports/{report_id}")
+def delete_report(request: Request, report_id: str) -> dict:
+    """Delete a single stored report."""
+    paths = _get_paths(request)
+    if not re.match(r"^[A-Za-z0-9]{8,64}$", report_id):
+        raise HTTPException(status_code=400, detail="Invalid report id.")
+    removed = blobstore.delete_prefix(f"{paths.reports_prefix}{report_id}/")
+    if not removed:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    log.info("[user=%s] deleted report %s", paths.user_id, report_id)
+    return {"status": "deleted", "report_id": report_id}
 
 
 # ===========================================================================

@@ -167,7 +167,7 @@ const DIFFERENTIATORS = [
   },
   {
     title: "Encrypted and private by default",
-    body: "Every upload is encrypted at rest (Fernet / AES-128 + HMAC) before it touches disk, and travels only over TLS. Per-user storage isolated by UUID, scanned on upload, and auto-deleted on sign-out or after 4 hours idle. SSO + passkeys supported.",
+    body: "Every upload is virus-scanned (VirusTotal), then encrypted at rest (Fernet / AES-128 + HMAC) before it reaches storage, and travels only over TLS. Per-user storage isolated by UUID, retained for up to 90 days, and deletable anytime. SSO + passkeys supported.",
     icon: (
       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v3m0-3h.01M5 11V7a7 7 0 0114 0v4M5 11h14M5 11H3m16 0h2" />
@@ -205,7 +205,7 @@ const FAQ = [
   },
   {
     q: "How is my data secured?",
-    a: "Every CSV is encrypted at rest (Fernet / AES-128 + HMAC) before it's written to disk, and encrypted in transit over TLS. Uploads are scanned and rejected if they aren't real CSVs. Storage is isolated per user (scoped to your Supabase UUID) and auto-deleted on sign-out or after 4 hours of inactivity. Auth supports SSO and passkeys. We never sell your data or train shared models on it — see the Security page for the full breakdown.",
+    a: "Every CSV and report is virus-scanned (VirusTotal), then encrypted at rest (Fernet / AES-128 + HMAC) before it reaches storage (Cloudflare R2), and encrypted in transit over TLS. Storage is isolated per user (scoped to your Supabase UUID), retained for up to 90 days, and deletable anytime from your profile. Auth supports SSO and passkeys. We never sell your data or train shared models on it — see the Security page for the full breakdown.",
   },
   {
     q: "Can I integrate RINK into my own app?",

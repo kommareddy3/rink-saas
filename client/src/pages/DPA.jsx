@@ -141,7 +141,7 @@ export default function DPA() {
         <ul className="text-sm text-gray-200 space-y-2.5 list-disc pl-5">
           <li>On Customer's request, RINK will provide a CSV export of Customer Data within 7 days.</li>
           <li>On termination of the subscription, RINK will delete Customer Data within <b>30 days</b> unless retention is required by law.</li>
-          <li>Customer-uploaded files and trained models are deleted automatically on sign-out or after 4 hours of inactivity — the at-rest deletion clock is therefore much shorter in practice.</li>
+          <li>Customer-uploaded files and generated reports are retained for at most <b>90 days</b> and then deleted automatically by a storage lifecycle rule; Customer may also delete them on demand at any time — so the at-rest retention period is bounded in practice.</li>
           <li>RINK will certify deletion in writing on Customer's request.</li>
         </ul>
       </Card>

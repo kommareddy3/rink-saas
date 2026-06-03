@@ -9,6 +9,19 @@ import { Badge, Card, PageHeader, SectionHeader } from "../components/ToolUI";
 
 const RELEASES = [
   {
+    version: "0.7.0",
+    date: "2026-06-01",
+    tag: "Beta",
+    title: "Cloud storage, virus scanning & 90-day retention",
+    changes: [
+      { kind: "added", text: "Datasets and reports now stored in Cloudflare R2 object storage, encrypted at rest (Fernet / AES-128) before upload." },
+      { kind: "added", text: "VirusTotal antivirus scanning on every upload and report — malicious files are rejected before storage." },
+      { kind: "added", text: "Report storage: Report Studio saves exports to your encrypted cloud storage; list, download, and delete via /api/reports." },
+      { kind: "added", text: "Contact form now accepts file attachments (resumes, data, job postings) up to 20 MB." },
+      { kind: "changed", text: "Data is retained up to 90 days then auto-deleted by an R2 lifecycle rule, or removed instantly via Delete my data. Sign-out no longer wipes your data." },
+    ],
+  },
+  {
     version: "0.6.0",
     date: "2026-05-14",
     tag: "Beta",
@@ -44,7 +57,7 @@ const RELEASES = [
       { kind: "added", text: "Profile page: edit name/phone/email, change password, manage passkeys, danger zone." },
       { kind: "added", text: "Custom email templates (confirm, reset, magic link, change-email) installed in Supabase." },
       { kind: "added", text: "Welcome email via Resend on first authenticated session (idempotent via user metadata flag)." },
-      { kind: "changed", text: "4-hour idle timeout with cross-tab activity tracking; sign-out wipes server data automatically." },
+      { kind: "changed", text: "4-hour idle timeout with cross-tab activity tracking." },
     ],
   },
   {

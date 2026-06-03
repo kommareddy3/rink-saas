@@ -7,11 +7,12 @@ Quick answers to the questions everyone asks. If yours isn't here,
 
 ### Is my uploaded data encrypted?
 
-Yes. Every CSV is **encrypted at rest** with Fernet (AES-128-CBC + an
-HMAC-SHA256 integrity tag) **before** it is written to disk — the
-plaintext file never lands on our storage. It's also encrypted in transit
-(HTTPS on every hop) and only decrypted transiently in memory to serve
-*your* forecasts. The full model is on the [Security](/security) page.
+Yes. Every CSV — and every report you generate — is **encrypted at rest**
+with Fernet (AES-128-CBC + an HMAC-SHA256 integrity tag) **before** it
+reaches storage (Cloudflare R2), so the storage provider never sees
+plaintext. It's also encrypted in transit (HTTPS on every hop) and only
+decrypted transiently in memory to serve *your* forecasts and downloads. The
+full model is on the [Security](/security) page.
 
 ### Who can see my data?
 
@@ -22,21 +23,25 @@ any shared/global model on it — every model is fit only on your dataset.
 
 ### How long do you keep my files?
 
-Only for your active session. When you sign out — manually or via the
-4-hour idle timeout — your CSV, model, and metadata are deleted from the
-server. Re-uploading also replaces the previous file.
+Up to **90 days**. Datasets and reports are retained for at most 3 months,
+then deleted automatically by a storage lifecycle rule — so you can return to
+your work and re-download past reports across sessions. You can also delete
+everything instantly from your profile, or remove individual reports. Signing
+out does **not** delete your data. Re-uploading replaces the previous dataset.
 
 ### Do you scan uploads?
 
-Yes. Before storage, RINK rejects anything that isn't a real CSV —
-executables, archives (ZIP/XLSX), PDFs, images, gzip, and files with
-binary/null bytes are all blocked with a `400`. See
-[upload scanning](/security#upload-scanning).
+Yes — twice. First a format guard rejects anything that isn't a real CSV
+(executables, archives, PDFs, images, gzip, and files with binary/null
+bytes). Then an antivirus scan via **VirusTotal** checks the file's hash
+against dozens of engines and rejects anything flagged malicious — before it
+is stored. Reports are scanned the same way. See
+[virus & upload scanning](/security#virus-upload-scanning).
 
 ### Is the AI assistant sent my data?
 
-No. The assistant answers forecasting questions and is **not** given your
-uploaded dataset.
+No. The assistant answers RINK and forecasting questions and is **not** given
+your uploaded dataset.
 
 ## Data & uploads
 
@@ -70,16 +75,16 @@ values you supply are reasonable for the column.
 
 ### Where did my uploaded CSV go?
 
-When you upload, the file is forwarded to the ML service and saved —
-**encrypted at rest** — at `/var/data/users/<your_uuid>/uploaded.csv`. It
-stays there until:
+When you upload, the file is forwarded to the ML service, scanned,
+encrypted, and saved to object storage under
+`users/<your_uuid>/uploaded.csv`. It stays there until:
 
 - You upload a new CSV (replaces the old one).
-- You sign out (manual or idle, after 4 hours).
-- An admin runs maintenance on the ML service.
+- You delete your data from your profile.
+- It reaches the 90-day retention limit and is auto-deleted.
 
 The file is **never** stored on the gateway or your browser, and never
-written to disk in plaintext.
+written to storage in plaintext. Signing out does not delete it.
 
 ### Can I export my forecast values?
 
@@ -104,8 +109,8 @@ if you're embedding RINK in your own workflow.
 
 ### Why does my chart show demo values?
 
-Either you haven't uploaded yet, or you signed out (which wipes server
-files) and signed back in. Re-upload your CSV.
+Either you haven't uploaded yet, or your data passed the 90-day retention
+limit (or you deleted it) and was removed. Re-upload your CSV.
 
 ## Accounts & sign-in
 
@@ -208,13 +213,21 @@ gateway hit. Cross-reference for activity patterns.
 
 ### How do I clean up a user's data manually?
 
+The cleanest way is the API — call `DELETE /api/user-data` on their behalf
+with their access token, which removes their entire `users/<uuid>/` namespace
+(datasets + reports) from cloud storage and disk.
+
+For storage configured with Cloudflare R2, you can also delete the
+`users/<uuid>/` prefix from the R2 dashboard. For the local-disk fallback:
+
 ```bash
 # On Render: shell into the service or use the Render CLI
-ls /var/data/users/
-rm -rf /var/data/users/<uuid>
+ls "$RINK_DATA_DIR/users/"
+rm -rf "$RINK_DATA_DIR/users/<uuid>"
 ```
 
-Or call the API on their behalf with their access token.
+All datasets and reports are also auto-deleted after 90 days by the R2
+lifecycle rule (see [Cloud storage setup](/CLOUD_STORAGE_SETUP)).
 
 ## Still stuck?
 

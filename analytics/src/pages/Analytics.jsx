@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import ReportStudio from "../components/ReportStudio";
+import DataManager from "../components/DataManager";
 import InfoTip from "../components/InfoTip";
 import { csvFilename, exportCSV } from "../utils/csv";
 
@@ -745,6 +746,24 @@ export default function Analytics() {
     }
   };
 
+  // Called after the user activates (switches to) a different stored dataset
+  // from the data manager — refresh the workspace against the new data.
+  const handleDatasetActivated = useCallback(async () => {
+    setValuesText("");
+    setPredictions([]);
+    setSplitIdx(null);
+    localStorage.removeItem(LS_KEY_COLUMN);
+    setGroupValue("");
+    setTrainStart("");
+    setTrainEnd("");
+    setExcludeRanges([]);
+    setFeatureColumns([]);
+    await fetchData();
+    await runAnalyze();
+    toast.success("Switched active dataset.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const trainWithColumn = useCallback(
     async (colOverride, extraBody = {}) => {
       const body = { ...(colOverride ? { column: colOverride } : {}), ...extraBody };
@@ -1117,6 +1136,9 @@ export default function Analytics() {
               </a>
             </p>
           </Card>
+
+          {/* Stored file library + saved reports */}
+          <DataManager onActivated={handleDatasetActivated} compact />
 
           {/* Train + column picker */}
           <Card className="p-6">

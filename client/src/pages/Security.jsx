@@ -111,13 +111,18 @@ export default function Security() {
               </tr>
               <tr>
                 <td className={ROW_CELL}>Uploaded CSVs</td>
-                <td className={ROW_CELL}>Render persistent disk, per-user path</td>
-                <td className={ROW_CELL}>Until sign-out or 4 h idle, then auto-deleted</td>
+                <td className={ROW_CELL}>Cloudflare R2, encrypted, per-user path</td>
+                <td className={ROW_CELL}>Up to 90 days, then auto-deleted; or delete anytime</td>
+              </tr>
+              <tr>
+                <td className={ROW_CELL}>Generated reports</td>
+                <td className={ROW_CELL}>Cloudflare R2, encrypted, per-user path</td>
+                <td className={ROW_CELL}>Up to 90 days, then auto-deleted; or delete anytime</td>
               </tr>
               <tr>
                 <td className={ROW_CELL}>Trained models (.joblib)</td>
-                <td className={ROW_CELL}>Same per-user path</td>
-                <td className={ROW_CELL}>Same as above</td>
+                <td className={ROW_CELL}>Regenerable working cache</td>
+                <td className={ROW_CELL}>Transient; rebuilt from your data on demand</td>
               </tr>
               <tr>
                 <td className={ROW_CELL}>Passkey public keys</td>

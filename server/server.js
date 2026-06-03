@@ -186,6 +186,13 @@ const contactUpload = multer({
   limits: { fileSize: CONTACT_MAX_BYTES, files: 5 },
 });
 
+// Generated reports (PDF / XLSX / CSV / JSON exports) saved to cloud storage.
+const REPORT_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+const reportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: REPORT_MAX_BYTES },
+});
+
 // Build the headers we forward to FastAPI on every authed call.
 function mlHeaders(req, extra = {}) {
   const headers = {
@@ -823,6 +830,134 @@ app.delete("/api/user-data", requireAuth, async (req, res) => {
     res.json(r.data);
   } catch (err) {
     handleProxyError(err, res, "Failed to delete user data");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Reports — store generated reports in cloud storage (encrypted + scanned in
+// the ML service), list them, download, and delete.
+// ---------------------------------------------------------------------------
+
+app.post("/api/reports", requireAuth, reportUpload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No report file uploaded (field name 'file')." });
+  }
+  try {
+    const fd = new FormData();
+    fd.append("file", req.file.buffer, {
+      filename: req.file.originalname || "report.bin",
+      contentType: req.file.mimetype || "application/octet-stream",
+    });
+    if (req.body?.title) fd.append("title", String(req.body.title));
+    if (req.body?.fmt) fd.append("fmt", String(req.body.fmt));
+    const r = await axios.post(`${ML_API_URL}/reports`, fd, {
+      headers: mlHeaders(req, fd.getHeaders()),
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 120_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Failed to store report");
+  }
+});
+
+app.get("/api/reports", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.get(`${ML_API_URL}/reports`, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Failed to list reports");
+  }
+});
+
+app.get("/api/reports/:id", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.get(`${ML_API_URL}/reports/${encodeURIComponent(req.params.id)}`, {
+      headers: mlHeaders(req),
+      responseType: "arraybuffer",
+      timeout: 60_000,
+    });
+    if (r.headers["content-type"]) res.setHeader("Content-Type", r.headers["content-type"]);
+    if (r.headers["content-disposition"]) res.setHeader("Content-Disposition", r.headers["content-disposition"]);
+    res.send(Buffer.from(r.data));
+  } catch (err) {
+    handleProxyError(err, res, "Failed to download report");
+  }
+});
+
+app.delete("/api/reports/:id", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.delete(`${ML_API_URL}/reports/${encodeURIComponent(req.params.id)}`, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Failed to delete report");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Dataset library — multiple uploaded files; list, activate (and re-train),
+// delete one, delete all.
+// ---------------------------------------------------------------------------
+
+app.get("/api/datasets", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.get(`${ML_API_URL}/datasets`, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Failed to list datasets");
+  }
+});
+
+app.post("/api/datasets/:id/activate", requireAuth, async (req, res) => {
+  try {
+    await axios.post(
+      `${ML_API_URL}/datasets/${encodeURIComponent(req.params.id)}/activate`,
+      {},
+      { headers: mlHeaders(req), timeout: 30_000 }
+    );
+    // Re-train on the newly-activated dataset, mirroring /api/upload.
+    const trainRes = await axios.post(
+      `${ML_API_URL}/train`,
+      {},
+      { headers: mlHeaders(req), timeout: 120_000 }
+    );
+    res.json({ message: "Dataset activated and model trained.", training: trainRes.data });
+  } catch (err) {
+    handleProxyError(err, res, "Failed to activate dataset");
+  }
+});
+
+app.delete("/api/datasets/:id", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.delete(`${ML_API_URL}/datasets/${encodeURIComponent(req.params.id)}`, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Failed to delete dataset");
+  }
+});
+
+app.delete("/api/datasets", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.delete(`${ML_API_URL}/datasets`, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Failed to delete datasets");
   }
 });
 

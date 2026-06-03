@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import PasskeyManager from "../components/PasskeyManager";
+import DataManager from "../components/DataManager";
 
 // ---------------------------------------------------------------------------
 // Validators (mirrored from Auth.jsx)
@@ -576,6 +577,9 @@ export default function Profile() {
             />
             <PasskeyManager onToast={toast} />
           </Card>
+
+          {/* Stored data — uploaded files + saved reports */}
+          <DataManager />
 
           {/* Danger zone */}
           <Card className="p-6 border-red-400/20">

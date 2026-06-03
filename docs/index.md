@@ -28,7 +28,7 @@ features:
     details: Univariate or multivariate recursive forecasting with flexible horizons, group/panel filtering, and custom training windows — plus a confidence band that widens with the horizon.
   - icon: 🔐
     title: Encrypted & private
-    details: Every CSV is encrypted at rest (Fernet/AES) before it touches disk, isolated to your account, scanned on upload, and deleted automatically on sign-out.
+    details: Every CSV and report is virus-scanned then encrypted at rest (Fernet/AES) before storage, isolated to your account, retained up to 90 days, and deletable anytime.
   - icon: ⏱
     title: 4-hour idle timeout
     details: Sessions auto-terminate after four hours of inactivity. Activity is tracked across tabs.

@@ -32,32 +32,92 @@ Liveness probe. **No headers required.**
   "users_dir": "/var/data/users",
   "user_count": 7,
   "gateway_secret_required": true,
-  "encryption_at_rest": true
+  "encryption_at_rest": true,
+  "storage_backend": "r2",
+  "virus_scanning": true
 }
 ```
 
-`encryption_at_rest` reflects whether `RINK_ENCRYPTION_KEY` is set and
-valid. See [Security](/security#encryption-at-rest).
+`encryption_at_rest` reflects whether `RINK_ENCRYPTION_KEY` is set and valid.
+`storage_backend` is `"r2"` when Cloudflare R2 is configured, else `"local"`.
+`virus_scanning` is `true` when a `VIRUSTOTAL_API_KEY` is set. See
+[Security](/security#encryption-at-rest).
 
 ### `POST /upload`
 
-Accepts a `.csv` file (multipart), **scans it** for non-CSV/binary
-content, **encrypts it**, and persists the ciphertext under
-`/var/data/users/<X-User-ID>/uploaded.csv`.
+Accepts a `.csv` file (multipart), runs a **format guard** and a
+**VirusTotal scan**, **encrypts it**, and persists the ciphertext under
+`users/<X-User-ID>/datasets/<file_id>/` in object storage (R2 or local
+fallback), and sets it as the **active** dataset (`uploaded.csv`) that the
+analysis/forecast pipeline reads.
 
 Same constraints as the gateway: ≤ 10 MB, valid CSV. Uploads matching a
-binary/archive/executable signature, or containing null bytes, are
-rejected with `400` before any write. See
-[upload scanning](/security#upload-scanning).
+binary/archive/executable signature or containing null bytes are rejected
+with `400`; files flagged malicious by VirusTotal are rejected with `422` —
+all before any write. See [virus & upload scanning](/security#virus-upload-scanning).
 
 **Response**
 
 ```json
-{ "status": "uploaded", "bytes": 12345, "encrypted": true }
+{ "status": "uploaded", "bytes": 12345, "encrypted": true, "scanned": true, "storage": "r2" }
 ```
 
 `encrypted` is `true` when the file was sealed with the at-rest key. The
-plaintext CSV is never written to disk.
+plaintext CSV is never written to storage.
+
+### `POST /reports`
+
+Stores a generated report. Accepts a multipart `file` plus optional `title`
+and `fmt` fields. The blob is scanned, encrypted, and stored under
+`users/<X-User-ID>/reports/<report_id>/`, with a small plaintext `meta.json`
+sidecar. ≤ 25 MB.
+
+**Response**
+
+```json
+{ "status": "stored", "report_id": "a1b2…", "filename": "report.html",
+  "content_type": "text/html", "fmt": "html", "size": 20480,
+  "title": "Churn analysis", "created_at": "2026-06-01T12:00:00Z" }
+```
+
+### `GET /reports`
+
+Lists the caller's stored reports (metadata only):
+`{ "reports": [ … ], "count": N }`.
+
+### `GET /reports/{report_id}`
+
+Streams a single decrypted report back with its original `Content-Type` and a
+`Content-Disposition` attachment filename.
+
+### `DELETE /reports/{report_id}`
+
+Deletes a single stored report.
+
+### `GET /datasets`
+
+Lists the user's uploaded file library:
+
+```json
+{ "datasets": [ { "file_id": "…", "filename": "sales.csv", "size": 20480,
+  "rows": 600, "content_type": "text/csv", "created_at": "…", "active": true } ],
+  "count": 1, "active_file_id": "…" }
+```
+
+### `POST /datasets/{file_id}/activate`
+
+Copies the chosen file's bytes into the active dataset slot (`uploaded.csv`)
+and clears the stale model so the next train runs on the new data. The gateway
+re-trains automatically.
+
+### `DELETE /datasets/{file_id}`
+
+Deletes a single file from the library. If it was active, the active dataset
+and trained model are cleared.
+
+### `DELETE /datasets`
+
+Deletes **all** of the user's uploaded files (and the active dataset + model).
 
 ### `POST /analyze`
 
@@ -206,28 +266,40 @@ If the user has no persisted CSV, a tiny demo series is returned.
 
 ### `DELETE /user-data`
 
-Removes the user's directory entirely:
-
-```
-shutil.rmtree("/var/data/users/<X-User-ID>")
-```
+Removes the user's entire namespace — dataset **and** every stored report —
+from object storage (R2) and the local working cache.
 
 **Response**
 
 ```json
-{ "status": "deleted", "removed": true }
+{ "status": "deleted", "removed": true, "objects_removed": 3 }
 ```
 
 ## Storage layout
 
+Object-storage keys (Cloudflare R2 when configured, else the equivalent local
+path under `RINK_DATA_DIR`):
+
 ```
-/var/data/
-└── users/
-    └── <user_uuid>/
-        ├── uploaded.csv     # encrypted at rest (Fernet) when a key is set
-        ├── model.joblib     # joblib-pickled GradientBoostingRegressor (target)
-        └── meta.joblib      # { column, feature_columns, exog_models, date_column, group_column, group_value, frequency, days_per_step }
+users/<user_uuid>/
+├── uploaded.csv              # ACTIVE dataset the pipeline reads — encrypted
+├── active.json               # { file_id } — which library file is active
+├── datasets/                 # the user's uploaded file library
+│   └── <file_id>/
+│       ├── blob              # the uploaded CSV — encrypted at rest
+│       └── meta.json         # { file_id, filename, size, rows, content_type, created_at }
+└── reports/
+    └── <report_id>/
+        ├── blob              # report file — encrypted at rest
+        └── meta.json         # { report_id, filename, content_type, fmt, size, title, created_at }
+
+# Regenerable working cache (local disk):
+model.joblib   # joblib-pickled GradientBoostingRegressor (target)
+meta.joblib    # { column, feature_columns, exog_models, date_column, group_column, group_value, frequency, days_per_step }
 ```
+
+Retention: an R2 lifecycle rule deletes objects 90 days after creation. See
+[Cloud storage setup](/CLOUD_STORAGE_SETUP).
 
 When `RINK_ENCRYPTION_KEY` is set, `uploaded.csv` holds a Fernet
 ciphertext token, not plaintext — see

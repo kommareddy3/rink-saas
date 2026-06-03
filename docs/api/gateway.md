@@ -239,18 +239,62 @@ the dashboard can render.
 
 ## `DELETE /api/user-data` 🔒
 
-Removes the calling user's uploaded CSV and trained model. Called
-automatically on sign-out (manual or idle).
+Removes **all** of the calling user's data — uploaded dataset and every stored
+report — from cloud storage and disk. Triggered on demand from the profile
+(**Delete my data**). Sign-out does **not** call this.
 
 **Response**
 
 ```json
-{ "status": "deleted", "removed": true }
+{ "status": "deleted", "removed": true, "objects_removed": 3 }
 ```
 
 `removed` is `false` if there was nothing to delete (already-empty user).
 
 ---
+
+## `POST /api/reports` 🔒
+
+Stores a generated report in encrypted cloud storage. Multipart body: `file`
+(the report, ≤ 25 MB) plus optional `title` and `fmt`. The report is
+virus-scanned and encrypted before storage.
+
+**Response**: the stored report's metadata
+(`report_id`, `filename`, `content_type`, `fmt`, `size`, `title`, `created_at`).
+
+## `GET /api/reports` 🔒
+
+Lists the caller's stored reports: `{ "reports": [ … ], "count": N }`.
+
+## `GET /api/reports/:id` 🔒
+
+Downloads one decrypted report with its original content type and filename.
+
+## `DELETE /api/reports/:id` 🔒
+
+Deletes a single stored report.
+
+> Reports and datasets are retained for up to **90 days**, then auto-deleted
+> by the storage lifecycle rule. See [Cloud storage setup](/CLOUD_STORAGE_SETUP).
+
+---
+
+## Dataset library 🔒
+
+Every upload is added to the user's file library (kept in the bucket) and set
+as the **active** dataset that the analysis/forecasting tools read. Users can
+keep many files and switch between them.
+
+| Method | Route | Purpose |
+|---|---|---|
+| `POST` | `/api/upload` | upload a CSV — added to the library and made active (auto-trains) |
+| `GET` | `/api/datasets` | list the user's files: `{ datasets[], count, active_file_id }` |
+| `POST` | `/api/datasets/:id/activate` | make a stored file the active dataset and re-train |
+| `DELETE` | `/api/datasets/:id` | delete one file from the bucket |
+| `DELETE` | `/api/datasets` | delete **all** uploaded files |
+
+Each dataset entry includes `file_id`, `filename`, `size`, `rows`,
+`created_at`, and `active`.
 
 ---
 

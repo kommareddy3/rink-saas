@@ -67,12 +67,15 @@ After updating, you're signed in and redirected to the workspace.
 
 Click the avatar in the top-right of the navbar, then **Sign out**.
 
-When you sign out, RINK does three things:
+When you sign out, RINK:
 
-1. Sends `DELETE /api/user-data` to the gateway, which forwards to the ML
-   service. Your uploaded CSV and trained model are removed from disk.
-2. Calls `supabase.auth.signOut()` to invalidate the access token.
-3. Clears the local activity stamp and navigates to the home page.
+1. Calls `supabase.auth.signOut()` to invalidate the access token.
+2. Clears the local activity stamp and navigates to the home page.
+
+Signing out does **not** delete your data. Datasets and reports are kept
+(encrypted) for up to 90 days so they're available when you return. To remove
+them sooner, use **Delete my data** in your profile, which sends
+`DELETE /api/user-data` and wipes your datasets and reports from storage.
 
 ## Idle timeout
 
@@ -84,8 +87,7 @@ Implementation details:
 - Activity is stamped to `localStorage` (key `rink:lastActivity`),
   throttled to once every 30 seconds.
 - A 60-second interval polls the stamp; if it's older than 4 hours, RINK
-  triggers the same sign-out flow as a manual click — including the
-  server-side cleanup.
+  triggers the same sign-out flow as a manual click.
 - The stamp is shared across browser tabs, so being active in any tab
   keeps all of them alive.
 - Reloading the page does **not** reset the stamp. If you reload after a

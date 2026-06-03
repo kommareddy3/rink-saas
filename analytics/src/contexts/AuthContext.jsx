@@ -54,23 +54,6 @@ function clearLastActivity() {
   window.localStorage.removeItem(LS_KEY_LAST_ACTIVITY);
 }
 
-// Best-effort DELETE /api/user-data using the freshest access token. We bypass
-// the project's axios instance to avoid any import-cycle weirdness during
-// sign-out, and to control the timeout precisely.
-async function wipeServerData(token) {
-  if (!token) return false;
-  try {
-    await axios.delete(`${API_BASE_URL}/api/user-data`, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 5000,
-    });
-    return true;
-  } catch (err) {
-    console.warn("[auth] failed to wipe server data on logout:", err?.message || err);
-    return false;
-  }
-}
-
 // Best-effort POST /api/welcome-email. Returns true on success so the caller
 // can flip the welcome_sent metadata flag.
 async function sendWelcomeEmail(token) {
@@ -252,17 +235,16 @@ export function AuthProvider({ children }) {
     return { data, error };
   };
 
-  // Internal sign-out that always wipes server data first. ``reason`` is logged
+  // Internal sign-out. Data is retained (see note below); ``reason`` is logged
   // so we can distinguish "user clicked Sign out" vs "session went idle".
   const enforcedSignOut = useCallback(async (reason = "manual") => {
     if (signingOutRef.current) return { error: null };
     signingOutRef.current = true;
     setLoading(true);
     try {
-      const token = tokenRef.current;
-      // Best-effort: tell the server to delete the user's files. Don't block
-      // the actual sign-out on this — fire it with a 5s ceiling.
-      await wipeServerData(token);
+      // Data is retained (encrypted) for up to 90 days so users keep their
+      // datasets and reports across sessions; they can delete everything on
+      // demand from their profile. So sign-out no longer wipes server data.
       clearLastActivity();
       const { error } = await supabase.auth.signOut();
       if (!error) {

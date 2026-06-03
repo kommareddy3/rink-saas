@@ -96,6 +96,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: "Deployment", link: "/deployment" },
+            { text: "Cloud storage & retention", link: "/CLOUD_STORAGE_SETUP" },
             { text: "FAQ & Troubleshooting", link: "/faq" },
           ],
         },

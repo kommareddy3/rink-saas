@@ -872,8 +872,8 @@ export default function Auth() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             <p className="text-[11px] leading-relaxed text-gray-400">
-              Your data is <span className="text-gray-200 font-medium">encrypted at rest and in transit</span>,
-              isolated to your account, and deleted automatically when you sign out.{" "}
+              Your data is <span className="text-gray-200 font-medium">virus-scanned, then encrypted at rest and in transit</span>,
+              isolated to your account, and deletable anytime.{" "}
               <a href="/security" className="text-blue-300 hover:text-blue-200">Learn how we protect it →</a>
             </p>
           </div>

@@ -35,7 +35,7 @@ const sections = [
     title: "Client and uploaded data",
     body: [
       "You control the data you upload to the RINK workspace. Uploaded files and generated models are stored in a user-scoped workspace and are used to provide the requested analytics functionality.",
-      "The application is designed to delete user-scoped uploaded files and trained models when you sign out or when the idle timeout cleanup flow runs. Some logs, backups, security records, or support communications may remain for legitimate business, security, or legal reasons.",
+      "User-scoped uploaded files and generated reports are stored encrypted, retained for up to 90 days, and then deleted automatically by a storage lifecycle rule; you can also delete them on demand at any time from your profile. Some logs, backups, security records, or support communications may remain for legitimate business, security, or legal reasons.",
       "Do not upload sensitive personal information, regulated health information, payment card data, government identification numbers, or confidential third-party data unless you have the right to do so and a written agreement with RINK specifically covers that use.",
     ],
   },
@@ -63,7 +63,7 @@ const sections = [
   {
     title: "Data retention",
     body: [
-      "We retain information for as long as needed to provide services, maintain accounts, support security, comply with legal and tax obligations, resolve disputes, and enforce agreements. Workspace uploads may be deleted through sign-out and idle cleanup flows, while business records and logs may be retained longer where appropriate.",
+      "We retain information for as long as needed to provide services, maintain accounts, support security, comply with legal and tax obligations, resolve disputes, and enforce agreements. Workspace uploads and reports are retained for up to 90 days and then auto-deleted (or removed on demand), while business records and logs may be retained longer where appropriate.",
     ],
   },
   {
