@@ -128,8 +128,11 @@ export default function Footer() {
           </div>
         </div>
 
+        {/* Compliance & verifications */}
+        <ComplianceBand />
+
         {/* Bottom bar */}
-        <div className="mt-12 pt-6 border-t border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500">
+        <div className="mt-10 pt-6 border-t border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500">
           <span>© {new Date().getFullYear()} RINK Global Services · All rights reserved.</span>
           <span className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -195,6 +198,62 @@ function SocialLink({ href, icon, label }) {
     >
       {icon}
     </a>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Compliance & verifications
+// ---------------------------------------------------------------------------
+// Public trust signals only — no registration numbers are published here for
+// security reasons. Official identifiers (EIN, state entity ID, etc.) are
+// shared privately with partners during onboarding (see the request line).
+const VERIFICATIONS = [
+  { label: "Legal entity", value: "RINK Global Services Inc." },
+  { label: "Status", value: "Registered US Business", emphasis: true },
+  { label: "Incorporated in", value: "Michigan, USA" },
+  { label: "Entity type", value: "Corporation (Inc.)" },
+  { label: "Standing", value: "Active & in good standing" },
+];
+
+function ComplianceBand() {
+  return (
+    <div className="mt-12 pt-8 border-t border-white/5">
+      <div className="flex items-center gap-2 mb-3">
+        <svg className="w-4 h-4 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <h4 className="text-xs uppercase tracking-widest font-semibold text-white">Compliance &amp; verifications</h4>
+      </div>
+      <p className="text-xs text-gray-400 max-w-3xl leading-relaxed mb-4">
+        RINK Global Services Inc. is a legally registered business in the United States,
+        headquartered in Farmington Hills, Michigan. We operate under standard US corporate,
+        tax, and data-protection obligations, and handle customer data in line with our{" "}
+        <Link to="/security" className="text-blue-300 hover:text-blue-200">security practices</Link>,{" "}
+        <Link to="/privacy" className="text-blue-300 hover:text-blue-200">privacy policy</Link>, and{" "}
+        <Link to="/dpa" className="text-blue-300 hover:text-blue-200">data processing addendum</Link>.
+      </p>
+      <div className="flex flex-wrap gap-2.5">
+        {VERIFICATIONS.filter((v) => v.value && v.value !== "REPLACE").map((v) => (
+          <div
+            key={v.label}
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
+              v.emphasis
+                ? "border-emerald-400/30 bg-emerald-500/10"
+                : "border-white/10 bg-white/5"
+            }`}
+          >
+            <span className="text-[10px] uppercase tracking-widest text-gray-500">{v.label}</span>
+            <span className={`text-xs font-medium ${v.emphasis ? "text-emerald-200" : "text-gray-200"}`}>
+              {v.value}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-gray-500 mt-3">
+        Need verification documents (W-9, Certificate of Good Standing, COI) for vendor onboarding?{" "}
+        <Link to="/contact?reason=partnership" className="text-blue-300 hover:text-blue-200">Request them here</Link>.
+      </p>
+    </div>
   );
 }
 
