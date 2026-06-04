@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/rink-logo.png";
@@ -357,8 +358,12 @@ function UserMenu({ user, displayName, open, setOpen, onSignOut, menuRef }) {
 // ---------------------------------------------------------------------------
 
 function MobileDrawer({ user, displayName, onSignOut, onClose }) {
-  return (
-    <div className="lg:hidden fixed inset-0 z-50">
+  // Render via a portal to <body> so the drawer's `fixed` positioning is
+  // relative to the viewport. (The sticky header uses backdrop-blur, which
+  // creates a containing block that would otherwise trap a fixed child inside
+  // the ~64px header and clip the menu.)
+  return createPortal(
+    <div className="lg:hidden fixed inset-0 z-[60]">
       <div className="absolute inset-0 bg-black/70 backdrop-blur" onClick={onClose} />
       <div className="absolute right-0 top-0 h-full w-[88vw] max-w-sm bg-gradient-to-b from-gray-950 to-black border-l border-white/10 overflow-y-auto shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
@@ -441,7 +446,8 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
