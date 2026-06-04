@@ -72,7 +72,7 @@ export function ToastList({ toasts, dismiss }) {
 
 export function Card({ className = "", children }) {
   return (
-    <div className={`bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.25)] ${className}`}>
+    <div className={`bg-white ring-1 ring-slate-200 rounded-2xl shadow-sm ${className}`}>
       {children}
     </div>
   );
@@ -83,13 +83,13 @@ export function SectionHeader({ icon, title, subtitle, action }) {
     <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
       <div className="flex items-start gap-3 min-w-0">
         {icon && (
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/30 to-purple-500/30 border border-white/10 flex items-center justify-center flex-none">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 ring-1 ring-slate-200 flex items-center justify-center flex-none">
             {icon}
           </div>
         )}
         <div className="min-w-0">
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          {subtitle && <p className="text-sm text-gray-400 mt-0.5">{subtitle}</p>}
+          <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+          {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
         </div>
       </div>
       {action}
@@ -138,8 +138,8 @@ export function Button({ variant = "primary", className = "", children, loading,
     primary: "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/20",
     accent: "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg shadow-purple-500/20",
     success: "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20",
-    ghost: "bg-white/5 hover:bg-white/10 text-white border border-white/10",
-    danger: "bg-red-500/15 hover:bg-red-500/25 text-red-200 border border-red-400/30",
+    ghost: "bg-white hover:bg-slate-50 text-slate-700 ring-1 ring-slate-200",
+    danger: "bg-red-50 hover:bg-red-100 text-red-700 ring-1 ring-red-200",
   };
   return (
     <button
@@ -160,12 +160,12 @@ export function Button({ variant = "primary", className = "", children, loading,
 
 export function Badge({ children, tone = "blue" }) {
   const tones = {
-    blue: "bg-blue-500/15 text-blue-200 border-blue-400/30",
-    emerald: "bg-emerald-500/15 text-emerald-200 border-emerald-400/30",
-    purple: "bg-purple-500/15 text-purple-200 border-purple-400/30",
-    amber: "bg-amber-500/15 text-amber-200 border-amber-400/30",
-    red: "bg-red-500/15 text-red-200 border-red-400/30",
-    gray: "bg-white/5 text-gray-300 border-white/15",
+    blue: "bg-blue-50 text-blue-700 border-blue-200",
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    purple: "bg-purple-50 text-purple-700 border-purple-200",
+    amber: "bg-amber-50 text-amber-700 border-amber-200",
+    red: "bg-red-50 text-red-700 border-red-200",
+    gray: "bg-slate-100 text-slate-600 border-slate-200",
   };
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider border rounded-md ${tones[tone]}`}>
@@ -278,14 +278,14 @@ export function PageHeader({ eyebrow, title, subtitle, action }) {
     <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
       <div>
         {eyebrow && (
-          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-blue-300 font-semibold mb-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-blue-700 font-semibold mb-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             {eyebrow}
           </div>
         )}
-        <h1 className="text-3xl sm:text-4xl font-bold text-white">{title}</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">{title}</h1>
         {subtitle && (
-          <p className="text-gray-400 mt-2 max-w-2xl">{subtitle}</p>
+          <p className="text-slate-600 mt-2 max-w-2xl">{subtitle}</p>
         )}
       </div>
       {action}

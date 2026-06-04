@@ -69,8 +69,8 @@ const CATEGORY_DESCRIPTIONS = [
   },
 ];
 
-const HEAD = "text-left text-xs uppercase tracking-wider text-gray-400 font-semibold py-3 pr-4 whitespace-nowrap";
-const CELL = "py-3 pr-4 text-sm text-gray-200 align-top";
+const HEAD = "text-left text-xs uppercase tracking-wider text-slate-500 font-semibold py-3 pr-4 whitespace-nowrap";
+const CELL = "py-3 pr-4 text-sm text-slate-700 align-top";
 
 export default function Cookies() {
   return (
@@ -83,13 +83,13 @@ export default function Cookies() {
 
       {/* Intro */}
       <Card className="p-6 mb-6">
-        <p className="text-sm text-gray-200 leading-relaxed">
+        <p className="text-sm text-slate-700 leading-relaxed">
           RINK uses a small number of cookies and similar technologies (localStorage entries) to keep
           you signed in and to remember your preferences. We don't use cookies for cross-site
           tracking, advertising, or analytics. If that ever changes, we'll tell you here first and
           give you a clear opt-in choice.
         </p>
-        <p className="text-sm text-gray-400 leading-relaxed mt-3">
+        <p className="text-sm text-slate-500 leading-relaxed mt-3">
           By using rinkglobal.com you consent to the cookies described below. You can clear them at
           any time from your browser settings; doing so will sign you out and reset workspace
           preferences but won't affect any data we've stored under your account.
@@ -102,18 +102,18 @@ export default function Cookies() {
           title="Cookie categories"
           subtitle="Four standard buckets; we only use the first two."
           icon={
-            <svg className="w-5 h-5 text-blue-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-5 h-5 text-blue-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
           }
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {CATEGORY_DESCRIPTIONS.map((c) => (
-            <div key={c.title} className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
+            <div key={c.title} className="p-4 rounded-xl bg-slate-50 border border-slate-200">
               <div className="flex items-center gap-2 mb-2">
                 <Badge tone={c.tone}>{c.title}</Badge>
               </div>
-              <p className="text-sm text-gray-300 leading-relaxed">{c.body}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{c.body}</p>
             </div>
           ))}
         </div>
@@ -136,10 +136,10 @@ export default function Cookies() {
                 <th className={HEAD}>Party</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-slate-200">
               {COOKIES.map((c) => (
                 <tr key={c.name}>
-                  <td className={CELL}><code className="text-blue-300 font-mono text-xs">{c.name}</code></td>
+                  <td className={CELL}><code className="text-blue-700 font-mono text-xs">{c.name}</code></td>
                   <td className={CELL}><Badge tone={c.tone}>{c.category}</Badge></td>
                   <td className={CELL}>{c.purpose}</td>
                   <td className={CELL}>{c.duration}</td>
@@ -154,12 +154,12 @@ export default function Cookies() {
       {/* Third-party note */}
       <Card className="p-6 mb-6">
         <SectionHeader title="Third-party services" />
-        <p className="text-sm text-gray-200 leading-relaxed">
+        <p className="text-sm text-slate-700 leading-relaxed">
           When you sign in via Google, GitHub, Microsoft, or LinkedIn, those providers set their own
           cookies on their own domains during the OAuth handshake. We don't control or have access
           to those cookies — see each provider's cookie policy for details.
         </p>
-        <p className="text-sm text-gray-200 leading-relaxed mt-3">
+        <p className="text-sm text-slate-700 leading-relaxed mt-3">
           Our documentation site (docs.rinkglobal.com) is served by Vercel and may set a small
           number of strictly-necessary cookies for routing and CDN behaviour. None are used for
           tracking.
@@ -172,22 +172,22 @@ export default function Cookies() {
           title="How to manage cookies"
           subtitle="Three ways to take control."
         />
-        <ol className="space-y-3 text-sm text-gray-200">
+        <ol className="space-y-3 text-sm text-slate-700">
           <li className="flex items-start gap-3">
-            <span className="flex-none w-6 h-6 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs flex items-center justify-center font-semibold">1</span>
+            <span className="flex-none w-6 h-6 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-700 text-xs flex items-center justify-center font-semibold">1</span>
             <span><b>Clear from your browser.</b> Site settings → Cookies and site data → rinkglobal.com → Clear. Signs you out and resets preferences.</span>
           </li>
           <li className="flex items-start gap-3">
-            <span className="flex-none w-6 h-6 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs flex items-center justify-center font-semibold">2</span>
+            <span className="flex-none w-6 h-6 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-700 text-xs flex items-center justify-center font-semibold">2</span>
             <span><b>Sign out.</b> Avatar menu → Sign out. Clears your session cookies and triggers server-side data deletion.</span>
           </li>
           <li className="flex items-start gap-3">
-            <span className="flex-none w-6 h-6 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs flex items-center justify-center font-semibold">3</span>
-            <span><b>Delete your account.</b> <Link to="/contact?reason=delete-account" className="text-blue-300 hover:text-blue-200">Email us</Link> and we'll wipe your account and any associated data within 30 days.</span>
+            <span className="flex-none w-6 h-6 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-700 text-xs flex items-center justify-center font-semibold">3</span>
+            <span><b>Delete your account.</b> <Link to="/contact?reason=delete-account" className="text-blue-700 hover:text-blue-800">Email us</Link> and we'll wipe your account and any associated data within 30 days.</span>
           </li>
         </ol>
-        <p className="text-xs text-gray-500 mt-5">
-          Questions? <Link to="/contact?reason=account" className="text-blue-300 hover:text-blue-200">Contact our team</Link>.
+        <p className="text-xs text-slate-500 mt-5">
+          Questions? <Link to="/contact?reason=account" className="text-blue-700 hover:text-blue-800">Contact our team</Link>.
         </p>
       </Card>
     </div>

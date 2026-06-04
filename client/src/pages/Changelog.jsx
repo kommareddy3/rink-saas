@@ -120,11 +120,11 @@ export default function Changelog() {
             <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xl font-bold text-white tabular-nums">v{release.version}</span>
+                  <span className="text-xl font-bold text-slate-900 tabular-nums">v{release.version}</span>
                   <Badge tone={release.tag === "Alpha" ? "amber" : "purple"}>{release.tag}</Badge>
-                  <span className="text-sm text-gray-400 tabular-nums">{release.date}</span>
+                  <span className="text-sm text-slate-500 tabular-nums">{release.date}</span>
                 </div>
-                <h2 className="text-lg font-semibold text-white mt-1">{release.title}</h2>
+                <h2 className="text-lg font-semibold text-slate-900 mt-1">{release.title}</h2>
               </div>
             </div>
 
@@ -136,15 +136,15 @@ export default function Changelog() {
                     <span className={`mt-1.5 w-1.5 h-1.5 rounded-full ${dot(k.tone)} flex-none`} />
                     <span className="flex-1">
                       <span className={`inline-block text-[10px] uppercase tracking-widest font-semibold mr-2 ${
-                        k.tone === "emerald" ? "text-emerald-300" :
-                        k.tone === "blue"    ? "text-blue-300" :
-                        k.tone === "amber"   ? "text-amber-300" :
-                        k.tone === "red"     ? "text-red-300" :
-                        "text-purple-300"
+                        k.tone === "emerald" ? "text-emerald-700" :
+                        k.tone === "blue"    ? "text-blue-700" :
+                        k.tone === "amber"   ? "text-amber-700" :
+                        k.tone === "red"     ? "text-red-700" :
+                        "text-purple-700"
                       }`}>
                         {k.label}
                       </span>
-                      <span className="text-gray-200">{ch.text}</span>
+                      <span className="text-slate-700">{ch.text}</span>
                     </span>
                   </li>
                 );
@@ -159,23 +159,23 @@ export default function Changelog() {
           title="Stay in the loop"
           subtitle="Three lightweight ways to track what we ship."
         />
-        <ul className="text-sm text-gray-300 space-y-2.5">
+        <ul className="text-sm text-slate-700 space-y-2.5">
           <li className="flex items-start gap-3">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 flex-none" />
             <span>
-              Subscribe to the <a href="https://status.rinkglobal.com" className="text-blue-300 hover:text-blue-200" target="_blank" rel="noopener noreferrer">status page</a> for incident and maintenance updates.
+              Subscribe to the <a href="https://status.rinkglobal.com" className="text-blue-700 hover:text-blue-800" target="_blank" rel="noopener noreferrer">status page</a> for incident and maintenance updates.
             </span>
           </li>
           <li className="flex items-start gap-3">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-2 flex-none" />
             <span>
-              Follow the <a href="https://github.com/" className="text-blue-300 hover:text-blue-200" target="_blank" rel="noopener noreferrer">GitHub repo</a> — every release is tagged.
+              Follow the <a href="https://github.com/" className="text-blue-700 hover:text-blue-800" target="_blank" rel="noopener noreferrer">GitHub repo</a> — every release is tagged.
             </span>
           </li>
           <li className="flex items-start gap-3">
             <span className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-2 flex-none" />
             <span>
-              Drop the team a note via the <Link to="/contact" className="text-blue-300 hover:text-blue-200">contact form</Link> if there's something specific you want us to ship next.
+              Drop the team a note via the <Link to="/contact" className="text-blue-700 hover:text-blue-800">contact form</Link> if there's something specific you want us to ship next.
             </span>
           </li>
         </ul>

@@ -111,15 +111,15 @@ export default function Terms() {
   return (
     <div className="px-4 py-12 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-4xl">
-        <div className="rounded-lg border border-white/10 bg-white/[0.05] p-6 sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-200/80">
+        <div className="rounded-lg border border-slate-200 bg-white p-6 sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700/80">
             Legal
           </p>
-          <h1 className="mt-3 text-4xl font-bold tracking-normal text-white sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-bold tracking-normal text-slate-900 sm:text-5xl">
             Terms of Service
           </h1>
-          <p className="mt-4 text-sm text-gray-400">Last updated: {updated}</p>
-          <p className="mt-6 text-base leading-8 text-gray-300">
+          <p className="mt-4 text-sm text-slate-500">Last updated: {updated}</p>
+          <p className="mt-6 text-base leading-8 text-slate-700">
             These Terms are written for RINK Global Services Inc. as an S-corp IT consulting
             and AI analytics business. They are general website and platform terms and should be
             reviewed by counsel before being used as final legal terms.
@@ -128,9 +128,9 @@ export default function Terms() {
 
         <div className="mt-8 space-y-5">
           {sections.map((section) => (
-            <section key={section.title} className="rounded-lg border border-white/10 bg-black/20 p-6">
-              <h2 className="text-2xl font-semibold tracking-normal text-white">{section.title}</h2>
-              <div className="mt-4 space-y-3 text-sm leading-7 text-gray-300">
+            <section key={section.title} className="rounded-lg border border-slate-200 bg-slate-50 p-6">
+              <h2 className="text-2xl font-semibold tracking-normal text-slate-900">{section.title}</h2>
+              <div className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
                 {section.body.map((item) => (
                   <p key={item}>{item}</p>
                 ))}
@@ -140,7 +140,7 @@ export default function Terms() {
         </div>
 
         <div className="mt-8 rounded-lg border border-blue-300/20 bg-blue-500/10 p-6 text-sm leading-7 text-blue-50">
-          <h2 className="text-xl font-semibold text-white">Contact</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Contact</h2>
           <p className="mt-3">
             Questions about these Terms can be sent to{" "}
             <a className="font-semibold underline decoration-blue-200/50 underline-offset-4" href="mailto:hello@rinkglobal.com">

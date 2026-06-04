@@ -26,8 +26,8 @@ const PILLARS = [
   },
 ];
 
-const ROW_HEAD = "text-left text-xs uppercase tracking-wider text-gray-400 font-semibold py-3 pr-4";
-const ROW_CELL = "py-3 pr-4 text-sm text-gray-200";
+const ROW_HEAD = "text-left text-xs uppercase tracking-wider text-slate-500 font-semibold py-3 pr-4";
+const ROW_CELL = "py-3 pr-4 text-sm text-slate-700";
 
 export default function Security() {
   return (
@@ -42,8 +42,8 @@ export default function Security() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
         {PILLARS.map((p) => (
           <Card key={p.title} className="p-6">
-            <h3 className="text-base font-semibold text-white">{p.title}</h3>
-            <p className="text-sm text-gray-300 mt-2 leading-relaxed">{p.body}</p>
+            <h3 className="text-base font-semibold text-slate-900">{p.title}</h3>
+            <p className="text-sm text-slate-700 mt-2 leading-relaxed">{p.body}</p>
           </Card>
         ))}
       </div>
@@ -54,12 +54,12 @@ export default function Security() {
           title="Authentication & access"
           subtitle="Multiple methods, all backed by Supabase."
           icon={
-            <svg className="w-5 h-5 text-blue-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-5 h-5 text-blue-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v3m0-3h.01M5 11V7a7 7 0 0114 0v4M5 11h14M5 11H3m16 0h2" />
             </svg>
           }
         />
-        <ul className="space-y-3 text-sm text-gray-200">
+        <ul className="space-y-3 text-sm text-slate-700">
           <li className="flex items-start gap-3">
             <Badge tone="emerald">Available</Badge>
             <span>Email + password with verification, password reset, and live strength scoring.</span>
@@ -89,7 +89,7 @@ export default function Security() {
           title="Data handling"
           subtitle="What we store, where, and for how long."
           icon={
-            <svg className="w-5 h-5 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-5 h-5 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
             </svg>
           }
@@ -103,7 +103,7 @@ export default function Security() {
                 <th className={ROW_HEAD}>Retention</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-slate-200">
               <tr>
                 <td className={ROW_CELL}>Account email + name</td>
                 <td className={ROW_CELL}>Supabase Auth (EU/US region)</td>
@@ -142,9 +142,9 @@ export default function Security() {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-500 mt-4">
+        <p className="text-xs text-slate-500 mt-4">
           We never train ML models on customer data, and we never sell or share it with third parties beyond the
-          sub-processors listed in our <Link to="/dpa" className="text-blue-300 hover:text-blue-200">Data Processing Addendum</Link>.
+          sub-processors listed in our <Link to="/dpa" className="text-blue-700 hover:text-blue-800">Data Processing Addendum</Link>.
         </p>
       </Card>
 
@@ -154,12 +154,12 @@ export default function Security() {
           title="Infrastructure"
           subtitle="Built on hardened, audited cloud providers."
           icon={
-            <svg className="w-5 h-5 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-5 h-5 text-purple-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
             </svg>
           }
         />
-        <ul className="space-y-2.5 text-sm text-gray-200">
+        <ul className="space-y-2.5 text-sm text-slate-700">
           <li><b>Vercel</b> hosts the React frontend, API gateway, and docs. SOC 2 Type 2 certified, ISO 27001.</li>
           <li><b>Render</b> hosts the FastAPI ML service. SOC 2 Type 2 certified, encrypted disks.</li>
           <li><b>Supabase</b> provides authentication and Postgres storage. SOC 2 Type 2 certified, HIPAA-eligible on paid plans.</li>
@@ -174,22 +174,22 @@ export default function Security() {
           title="Responsible disclosure"
           subtitle="Found a vulnerability? Tell us privately."
           icon={
-            <svg className="w-5 h-5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-5 h-5 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
             </svg>
           }
         />
-        <p className="text-sm text-gray-200 leading-relaxed">
-          Email <a href="mailto:admin@rinkglobal.com" className="text-blue-300 hover:text-blue-200">admin@rinkglobal.com</a>
+        <p className="text-sm text-slate-700 leading-relaxed">
+          Email <a href="mailto:admin@rinkglobal.com" className="text-blue-700 hover:text-blue-800">admin@rinkglobal.com</a>
           {" "}with reproduction steps and impact. We commit to:
         </p>
-        <ul className="text-sm text-gray-200 mt-3 space-y-1.5 list-disc pl-5">
+        <ul className="text-sm text-slate-700 mt-3 space-y-1.5 list-disc pl-5">
           <li>Acknowledge receipt within 24 hours.</li>
           <li>Triage within 3 business days.</li>
           <li>Credit reporters in this changelog on request (or stay quiet, your call).</li>
           <li>Not pursue legal action against good-faith research that respects user data and avoids destructive testing.</li>
         </ul>
-        <p className="text-xs text-gray-400 mt-4">
+        <p className="text-xs text-slate-500 mt-4">
           Please don't disclose details publicly until we've shipped a fix. We aim for fix-and-disclose within 30 days for high-severity issues.
         </p>
       </Card>
@@ -200,15 +200,15 @@ export default function Security() {
           title="Compliance roadmap"
           subtitle="Where we are vs. where we're going."
         />
-        <ul className="space-y-2.5 text-sm text-gray-200">
+        <ul className="space-y-2.5 text-sm text-slate-700">
           <li className="flex items-start gap-3"><Badge tone="emerald">In place</Badge><span>GDPR Art. 28 processor contract (see our DPA).</span></li>
           <li className="flex items-start gap-3"><Badge tone="emerald">In place</Badge><span>Per-user data deletion (right to erasure on request).</span></li>
           <li className="flex items-start gap-3"><Badge tone="amber">In progress</Badge><span>SOC 2 Type 1 — targeting Q4 2026.</span></li>
           <li className="flex items-start gap-3"><Badge tone="amber">In progress</Badge><span>ISO 27001 statement of applicability.</span></li>
           <li className="flex items-start gap-3"><Badge tone="gray">Planned</Badge><span>HIPAA-eligible deployment for healthcare customers.</span></li>
         </ul>
-        <p className="text-xs text-gray-500 mt-5">
-          Need a security questionnaire filled in? <Link to="/contact?reason=security" className="text-blue-300 hover:text-blue-200">Email the security team</Link> — we typically turn responses around in 2 business days.
+        <p className="text-xs text-slate-500 mt-5">
+          Need a security questionnaire filled in? <Link to="/contact?reason=security" className="text-blue-700 hover:text-blue-800">Email the security team</Link> — we typically turn responses around in 2 business days.
         </p>
       </Card>
     </div>

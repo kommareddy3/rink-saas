@@ -11,51 +11,6 @@ import { ANALYTICS } from "../links";
 const DOCS_URL = "https://docs.rinkglobal.com";
 
 // "What we do" mega-menu content (services + industries + engagement models)
-const WHAT_WE_DO = {
-  Services: [
-    { label: "Cloud Migrations", to: "/#services", hint: "AWS · Azure · GCP" },
-    { label: "IT Infrastructure", to: "/#services", hint: "Networks · hybrid · virtualisation" },
-    { label: "Cybersecurity", to: "/#services", hint: "Zero-trust · IAM · SOC" },
-    { label: "Managed Services", to: "/#services", hint: "24×7 ops & support" },
-    { label: "Data Analytics & AI", href: ANALYTICS.home, external: true, hint: "Our own SaaS — RINK Data Analytics", badge: "Product" },
-    { label: "IT Staff Augmentation", to: "/#how-we-engage", hint: "C2C and W2 talent" },
-  ],
-  Industries: [
-    { label: "Financial Services", to: "/#use-cases", hint: "Banking · capital markets · insurance" },
-    { label: "Healthcare & Life Sciences", to: "/#use-cases", hint: "HIPAA · HL7 · payer–provider" },
-    { label: "Retail, Logistics & Supply Chain", to: "/#use-cases", hint: "Forecasting · routing · ops" },
-    { label: "Energy, Utilities & Public Sector", to: "/#use-cases", hint: "OT/IT · NIST CSF" },
-  ],
-  "Engagement Models": [
-    { label: "For Vendors (C2C)", to: "/#how-we-engage", hint: "Pre-vetted Corp-to-Corp consultants" },
-    { label: "For End Clients", to: "/#how-we-engage", hint: "Projects · W2 placements · managed" },
-    { label: "Talk to our team", to: "/contact?reason=sales", hint: "Request a consultation" },
-  ],
-};
-
-// "About RINK" mega-menu content
-const ABOUT_RINK = {
-  Company: [
-    { label: "About us", to: "/about", hint: "Founder-led, US-based — our story & team" },
-    { label: "Security & data protection", to: "/security", hint: "Encryption, access control, data handling" },
-    { label: "Privacy policy", to: "/privacy", hint: "What we collect and why" },
-    { label: "Terms of service", to: "/terms", hint: "The agreement that governs use" },
-    { label: "Data processing addendum", to: "/dpa", hint: "GDPR/CCPA processing terms" },
-    { label: "Cookies", to: "/cookies", hint: "How we use cookies" },
-  ],
-  Updates: [
-    { label: "Changelog", to: "/changelog", hint: "What we've shipped recently" },
-    { label: "Status", href: "https://status.rinkglobal.com", external: true, hint: "Live uptime & incidents" },
-  ],
-};
-
-// "What we think" — insights / docs / writing
-const WHAT_WE_THINK = [
-  { label: "Documentation", href: DOCS_URL, external: true, hint: "Product + API docs" },
-  { label: "Changelog", to: "/changelog", hint: "What's shipped" },
-  { label: "Security posture", to: "/security", hint: "How we protect your data" },
-];
-
 // Top-level navigation — simple links to dedicated pages.
 const NAV_LINKS = [
   { label: "Services", to: "/#services" },
@@ -335,96 +290,6 @@ export default function Navbar() {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function NavTrigger({ label, active, onToggle, t }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={active}
-      className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold transition ${
-        active ? t.navTriggerActive : t.navTrigger
-      }`}
-    >
-      {label}
-      <span className={`transition-transform ${active ? "rotate-180" : ""}`}>
-        {Icon.chevron}
-      </span>
-    </button>
-  );
-}
-
-function MegaPanel({ children, onClose, t }) {
-  return (
-    <div
-      className={`hidden lg:block absolute left-0 right-0 top-full backdrop-blur-xl shadow-2xl shadow-blue-500/5 z-30 ${t.megaPanel}`}
-      onMouseLeave={onClose}
-    >
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8">{children}</div>
-    </div>
-  );
-}
-
-function MegaColumn({ heading, items, t }) {
-  return (
-    <div>
-      <div className={`text-[11px] uppercase tracking-widest font-semibold mb-3 ${t.megaHeading}`}>
-        {heading}
-      </div>
-      <ul className="space-y-1">
-        {items.map((it) => (
-          <li key={it.label}>
-            <MegaItem {...it} t={t} />
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function MegaItem({ label, to, href, external, hint, badge, t }) {
-  const body = (
-    <div className={`group flex items-start gap-2 px-3 py-2 rounded-lg transition ${t.megaItemHover}`}>
-      <div className="flex-1 min-w-0">
-        <div className={`text-sm font-medium flex items-center gap-2 ${t.megaTitle}`}>
-          <span>{label}</span>
-          {badge && (
-            <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-purple-100 border border-purple-300 text-purple-700">
-              {badge}
-            </span>
-          )}
-          {external && <span className={t.externalIcon}>{Icon.external}</span>}
-        </div>
-        {hint && <div className={`text-xs mt-0.5 leading-snug ${t.megaHint}`}>{hint}</div>}
-      </div>
-    </div>
-  );
-  if (href) {
-    return (
-      <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}>
-        {body}
-      </a>
-    );
-  }
-  return <Link to={to}>{body}</Link>;
-}
-
-function MegaFooter({ text, cta, t }) {
-  return (
-    <div className={`mt-8 pt-5 border-t flex items-center justify-between text-sm ${t.megaDivider}`}>
-      <span className={t.megaHint}>{text}</span>
-      <Link
-        to={cta.to}
-        className={`inline-flex items-center gap-1.5 font-medium ${t === undefined || t.megaHeading === "text-blue-300" ? "text-blue-300 hover:text-blue-200" : "text-blue-700 hover:text-blue-800"}`}
-      >
-        {cta.label}
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-        </svg>
-      </Link>
-    </div>
-  );
-}
-
 function UserMenu({ user, displayName, open, setOpen, onSignOut, menuRef }) {
   const initials = initialsFromUser(user, displayName);
   const color = avatarColor(user?.id || user?.email || displayName);
@@ -492,7 +357,6 @@ function UserMenu({ user, displayName, open, setOpen, onSignOut, menuRef }) {
 // ---------------------------------------------------------------------------
 
 function MobileDrawer({ user, displayName, onSignOut, onClose }) {
-  const [section, setSection] = useState(null); // "do" | "think" | "about" | null
   return (
     <div className="lg:hidden fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/70 backdrop-blur" onClick={onClose} />
@@ -577,62 +441,6 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function DrawerGroup({ label, open, onToggle, children }) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold text-white hover:bg-white/5"
-      >
-        <span>{label}</span>
-        <span className={`transition-transform ${open ? "rotate-180" : ""}`}>
-          {Icon.chevron}
-        </span>
-      </button>
-      {open && <div className="pl-2 pb-2 space-y-3">{children}</div>}
-    </div>
-  );
-}
-
-function DrawerSubgroup({ heading, items, onClose }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-widest text-blue-300 font-semibold mt-2 mb-1 px-3">
-        {heading}
-      </div>
-      <ul>
-        {items.map((it) =>
-          it.href ? (
-            <li key={it.label}>
-              <a
-                href={it.href}
-                target={it.external ? "_blank" : undefined}
-                rel={it.external ? "noopener noreferrer" : undefined}
-                onClick={onClose}
-                className="block px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/5"
-              >
-                {it.label}
-              </a>
-            </li>
-          ) : (
-            <li key={it.label}>
-              <Link
-                to={it.to}
-                onClick={onClose}
-                className="block px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/5"
-              >
-                {it.label}
-              </Link>
-            </li>
-          )
-        )}
-      </ul>
     </div>
   );
 }
