@@ -794,6 +794,146 @@ def delete_all_datasets(request: Request) -> dict:
     return {"status": "deleted", "objects_removed": removed}
 
 
+# ===========================================================================
+# Dashboard — auto-profiling of the active dataset for the Insights page
+# ===========================================================================
+
+def _safe_num(x):
+    """JSON-safe float (NaN/inf -> None)."""
+    try:
+        f = float(x)
+        if np.isnan(f) or np.isinf(f):
+            return None
+        return round(f, 4)
+    except Exception:
+        return None
+
+
+def _build_dashboard(df: pd.DataFrame) -> dict:
+    n_rows = int(len(df))
+    date_col = _detect_date_column(df)
+
+    # ---- Column profiles -------------------------------------------------
+    columns = []
+    numeric_cols, categorical_cols = [], []
+    for col in df.columns:
+        s = df[col]
+        missing = int(s.isna().sum())
+        is_num = bool(pd.api.types.is_numeric_dtype(s)) and col != date_col
+        is_date = col == date_col
+        kind = "datetime" if is_date else ("numeric" if is_num else "categorical")
+        columns.append({
+            "name": str(col),
+            "kind": kind,
+            "missing": missing,
+            "missing_pct": _safe_num(100 * missing / n_rows) if n_rows else 0,
+            "unique": int(s.nunique(dropna=True)),
+        })
+        if is_num:
+            numeric_cols.append(col)
+        elif not is_date:
+            categorical_cols.append(col)
+
+    # ---- Numeric summaries + histograms ----------------------------------
+    numeric_summary = []
+    for col in numeric_cols[:12]:
+        s = pd.to_numeric(df[col], errors="coerce").dropna()
+        if s.empty:
+            continue
+        try:
+            counts, edges = np.histogram(s, bins=min(20, max(5, s.nunique())))
+            hist = [
+                {"bin": f"{_safe_num(edges[i])}", "x": _safe_num((edges[i] + edges[i + 1]) / 2), "count": int(counts[i])}
+                for i in range(len(counts))
+            ]
+        except Exception:
+            hist = []
+        numeric_summary.append({
+            "column": str(col),
+            "count": int(s.count()),
+            "mean": _safe_num(s.mean()),
+            "std": _safe_num(s.std()),
+            "min": _safe_num(s.min()),
+            "p25": _safe_num(s.quantile(0.25)),
+            "median": _safe_num(s.median()),
+            "p75": _safe_num(s.quantile(0.75)),
+            "max": _safe_num(s.max()),
+            "histogram": hist,
+        })
+
+    # ---- Categorical top values -----------------------------------------
+    categorical = []
+    for col in categorical_cols[:8]:
+        vc = df[col].astype(str).value_counts(dropna=True).head(8)
+        categorical.append({
+            "column": str(col),
+            "values": [{"label": str(k)[:40], "count": int(v)} for k, v in vc.items()],
+        })
+
+    # ---- Correlations (numeric) -----------------------------------------
+    correlations = None
+    if len(numeric_cols) >= 2:
+        try:
+            corr = df[numeric_cols[:8]].apply(pd.to_numeric, errors="coerce").corr()
+            correlations = {
+                "columns": [str(c) for c in corr.columns],
+                "matrix": [[_safe_num(corr.iloc[i, j]) for j in range(len(corr.columns))] for i in range(len(corr.columns))],
+            }
+        except Exception:
+            correlations = None
+
+    # ---- Time series (downsampled) --------------------------------------
+    time_series = None
+    if date_col and numeric_cols:
+        try:
+            tmp = df[[date_col] + numeric_cols[:4]].copy()
+            tmp[date_col] = pd.to_datetime(tmp[date_col], errors="coerce")
+            tmp = tmp.dropna(subset=[date_col]).sort_values(date_col)
+            for c in numeric_cols[:4]:
+                tmp[c] = pd.to_numeric(tmp[c], errors="coerce")
+            grouped = tmp.groupby(date_col)[numeric_cols[:4]].mean().reset_index()
+            if len(grouped) > 200:
+                step = int(np.ceil(len(grouped) / 200))
+                grouped = grouped.iloc[::step]
+            freq, _ = _infer_frequency(tmp[date_col])
+            time_series = {
+                "date_column": str(date_col),
+                "frequency": freq,
+                "series": numeric_cols[:4],
+                "points": [
+                    {"date": pd.Timestamp(r[date_col]).strftime("%Y-%m-%d"),
+                     **{str(c): _safe_num(r[c]) for c in numeric_cols[:4]}}
+                    for _, r in grouped.iterrows()
+                ],
+            }
+        except Exception:
+            time_series = None
+
+    return {
+        "rows": n_rows,
+        "columns_count": int(len(df.columns)),
+        "numeric_count": len(numeric_cols),
+        "categorical_count": len(categorical_cols),
+        "date_column": str(date_col) if date_col else None,
+        "missing_total_pct": _safe_num(100 * df.isna().sum().sum() / (n_rows * len(df.columns))) if n_rows and len(df.columns) else 0,
+        "columns": columns,
+        "numeric_summary": numeric_summary,
+        "categorical": categorical,
+        "correlations": correlations,
+        "time_series": time_series,
+        "preview": df.head(8).fillna("").astype(str).to_dict(orient="records"),
+    }
+
+
+@app.get("/dashboard")
+def dashboard(request: Request) -> dict:
+    """Auto-profile the active dataset into chart-ready stats for the
+    Insights dashboard (KPIs, distributions, correlations, trends)."""
+    paths = _get_paths(request)
+    df = _load_dataset(paths)
+    return _build_dashboard(df)
+
+
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(request: Request) -> AnalyzeResponse:
     """Profile the uploaded CSV so the client can confirm the schema before

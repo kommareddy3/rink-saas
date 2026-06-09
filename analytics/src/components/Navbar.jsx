@@ -222,6 +222,7 @@ export default function Navbar() {
   ];
   // Authed links — nav for signed-in users. "Tools" renders as a dropdown.
   const authedLinks = [
+    { to: "/insights", label: "Insights", icon: Icon.workspace },
     { type: "tools-dropdown" },
     { to: DOCS_URL, label: "Docs", external: true, newTab: true, icon: Icon.docs },
     { to: "/contact", label: "Help", icon: Icon.help },
@@ -516,6 +517,7 @@ function MobileDrawer({ user, displayName, onSignOut, onClose }) {
                 <div className="text-xs text-gray-400 truncate">{user?.email}</div>
               </div>
             </div>
+            <DrawerLink to="/insights" icon={Icon.workspace} label="Insights Dashboard" onClose={onClose} />
             <div className="text-[11px] uppercase tracking-widest text-gray-500 px-3 pt-2 pb-1">
               Tools
             </div>

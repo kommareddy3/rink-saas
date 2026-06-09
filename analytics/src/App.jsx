@@ -11,6 +11,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Analytics from "./pages/Analytics";
+import Insights from "./pages/Insights";
 import AnomalyDetection from "./pages/AnomalyDetection";
 import ChurnPrediction from "./pages/ChurnPrediction";
 import CustomerSegmentation from "./pages/CustomerSegmentation";
@@ -62,6 +63,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <Analytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/insights"
+                element={
+                  <ProtectedRoute>
+                    <Insights />
                   </ProtectedRoute>
                 }
               />

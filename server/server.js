@@ -390,6 +390,52 @@ app.get("/api/data", requireAuth, async (req, res) => {
   }
 });
 
+// Auto-profiled dashboard stats (KPIs, distributions, correlations, trends)
+// for the Insights page.
+app.get("/api/dashboard", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.get(`${ML_API_URL}/dashboard`, {
+      headers: mlHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Dashboard profiling failed");
+  }
+});
+
+// AI explanation of the uploaded file, generated from the dashboard summary.
+app.post("/api/insights", requireAuth, async (req, res) => {
+  if (!groq) {
+    return res.status(503).json({ error: "AI insights are not configured on this deployment." });
+  }
+  const { summary } = req.body || {};
+  if (!summary || typeof summary !== "object") {
+    return res.status(400).json({ error: "Missing dashboard summary." });
+  }
+  try {
+    const completion = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      temperature: 0.4,
+      max_tokens: 700,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a senior data analyst at RINK Data Analytics. Given a statistical profile of a user's uploaded dataset (shape, column types, summary stats, top categories, correlations, and any time trend), write a clear, plain-language briefing. Use four short labelled sections: 'What this dataset is', 'Key trends & patterns', 'Data quality notes', and 'Suggested next steps' (mention which RINK tools fit — forecasting, anomaly detection, churn, segmentation, A/B testing, route optimization). Never invent numbers not present in the profile. Be concise and concrete.",
+        },
+        { role: "user", content: "Dataset profile (JSON):\n" + JSON.stringify(summary).slice(0, 8000) },
+      ],
+    });
+    const insights = completion.choices?.[0]?.message?.content?.trim() || "";
+    res.json({ insights, model: GROQ_MODEL });
+  } catch (err) {
+    console.error("[insights] error:", err?.message || err);
+    const status = err?.status || err?.response?.status || 500;
+    res.status(status).json({ error: err?.response?.data?.error?.message || err?.message || "Insights generation failed." });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Welcome email (Resend)
 // ---------------------------------------------------------------------------
