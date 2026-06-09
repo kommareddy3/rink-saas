@@ -390,6 +390,20 @@ app.get("/api/data", requireAuth, async (req, res) => {
   }
 });
 
+// Distinct values for a (composite) group/ID key, for the forecasting selector.
+app.get("/api/group-values", requireAuth, async (req, res) => {
+  try {
+    const r = await axios.get(`${ML_API_URL}/group-values`, {
+      headers: mlHeaders(req),
+      params: req.query,
+      timeout: 20_000,
+    });
+    res.json(r.data);
+  } catch (err) {
+    handleProxyError(err, res, "Group values fetch failed");
+  }
+});
+
 // Auto-profiled dashboard stats (KPIs, distributions, correlations, trends)
 // for the Insights page.
 app.get("/api/dashboard", requireAuth, async (req, res) => {

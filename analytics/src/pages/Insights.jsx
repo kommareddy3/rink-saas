@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api";
 import {
@@ -46,36 +46,81 @@ export default function Insights() {
   const [error, setError] = useState(null);
   const [insights, setInsights] = useState("");
   const [genLoading, setGenLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get("/api/dashboard");
-      setData(res.data);
-      setInsights("");
-    } catch (err) {
-      if (err?.response?.status === 404) setError("none");
-      else setError(prettyError(err, "Couldn't load the dashboard."));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const generateInsights = async () => {
-    if (!data) return;
+  const generateInsights = useCallback(async (src) => {
+    const d = src || data;
+    if (!d) return;
     setGenLoading(true);
     try {
-      const res = await api.post("/api/insights", { summary: buildSummary(data) });
+      const res = await api.post("/api/insights", { summary: buildSummary(d) });
       setInsights(res.data?.insights || "No insights returned.");
     } catch (err) {
       toast.error(prettyError(err, "Couldn't generate insights."));
     } finally {
       setGenLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setInsights("");
+    try {
+      const res = await api.get("/api/dashboard");
+      setData(res.data);
+      generateInsights(res.data); // AI briefing leads — auto-run on load
+    } catch (err) {
+      setData(null);
+      if (err?.response?.status === 404) setError("none");
+      else setError(prettyError(err, "Couldn't load the dashboard."));
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleUpload = async (file) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      toast.error("Please upload a .csv file. (Excel support is coming soon.)");
+      return;
+    }
+    setUploading(true);
+    const t = toast.info(`Uploading ${file.name}…`, 0);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await api.post("/api/upload", fd);
+      dismiss(t);
+      toast.success("Uploaded, scanned, and profiled.");
+      await load();
+    } catch (err) {
+      dismiss(t);
+      toast.error(prettyError(err, "Upload failed."));
+    } finally {
+      setUploading(false);
+    }
   };
+
+  const UploadButton = ({ label = "Upload CSV" }) => (
+    <>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = ""; }}
+      />
+      <Button variant="primary" onClick={() => fileRef.current?.click()} loading={uploading}>
+        {uploading ? "Uploading…" : label}
+      </Button>
+    </>
+  );
 
   const numeric = data?.numeric_summary || [];
   const [activeHist, setActiveHist] = useState(0);
@@ -97,7 +142,12 @@ export default function Insights() {
         eyebrow="Insights Dashboard"
         title="Understand your file at a glance"
         subtitle="Auto-generated trends, distributions, correlations, and an AI explanation of your active dataset."
-        action={<Button variant="ghost" onClick={load} disabled={loading}>{loading ? "Loading…" : "Refresh"}</Button>}
+        action={
+          <div className="flex items-center gap-2">
+            <UploadButton />
+            <Button variant="ghost" onClick={load} disabled={loading}>{loading ? "Loading…" : "Refresh"}</Button>
+          </div>
+        }
       />
 
       {/* Empty / error states */}
@@ -105,11 +155,12 @@ export default function Insights() {
         <Card className="p-8 text-center mb-6">
           <h3 className="text-lg font-semibold text-white">No dataset yet</h3>
           <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
-            Upload a CSV in the workspace (or activate one below), then come back to see your dashboard.
+            Upload a CSV right here to profile it, or activate a previously uploaded file below.
           </p>
-          <div className="mt-5">
-            <Link to="/analytics-workspace" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
-              Go to workspace to upload
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <UploadButton label="Upload a CSV" />
+            <Link to="/analytics-workspace" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-gray-200 bg-white/5 border border-white/10 hover:bg-white/10">
+              Open workspace
             </Link>
           </div>
         </Card>
@@ -122,6 +173,25 @@ export default function Insights() {
 
       {data && (
         <>
+          {/* AI briefing — leads the page */}
+          <Card className="p-6 mb-6 ring-1 ring-purple-400/20">
+            <SectionHeader
+              title="AI briefing — what this file shows"
+              subtitle="Plain-language read of your data: what it is, the real patterns, data-quality notes, and which tools fit."
+              action={<Button variant="accent" onClick={() => generateInsights()} loading={genLoading}>{genLoading ? "Analyzing…" : insights ? "Regenerate" : "Generate"}</Button>}
+            />
+            {genLoading && !insights ? (
+              <div className="space-y-2">
+                {[0, 1, 2, 3].map((i) => <div key={i} className="h-3 rounded bg-white/10 animate-pulse" style={{ width: `${90 - i * 12}%` }} />)}
+                <p className="text-xs text-gray-500 pt-1">Reading your data and writing the briefing…</p>
+              </div>
+            ) : insights ? (
+              <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">{insights}</div>
+            ) : (
+              <p className="text-sm text-gray-500">Couldn't auto-generate — click <b className="text-gray-300">Generate</b> to retry.</p>
+            )}
+          </Card>
+
           {/* KPI row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <KpiCard label="Rows" value={data.rows?.toLocaleString()} accent="blue" />
@@ -130,19 +200,8 @@ export default function Insights() {
             <KpiCard label="Time column" value={data.date_column || "—"} accent="emerald" />
           </div>
 
-          {/* AI explanation */}
-          <Card className="p-6 mb-6">
-            <SectionHeader
-              title="What this file shows"
-              subtitle="Plain-language explanation generated from your data's profile."
-              action={<Button variant="accent" onClick={generateInsights} loading={genLoading}>{insights ? "Regenerate" : "Explain this file"}</Button>}
-            />
-            {insights ? (
-              <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">{insights}</div>
-            ) : (
-              <p className="text-sm text-gray-500">Click <b className="text-gray-300">Explain this file</b> for an AI briefing — what the dataset is, key trends, data-quality notes, and which RINK tools fit.</p>
-            )}
-          </Card>
+          {/* Charts heading */}
+          <div className="text-[11px] uppercase tracking-widest text-gray-500 mb-3">Supporting charts</div>
 
           {/* Time trend */}
           {ts && ts.points?.length > 1 && (
@@ -170,6 +229,14 @@ export default function Insights() {
                   <Line type="monotone" dataKey={seriesKey} stroke="#60a5fa" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
+              {data.categorical_count > 0 && (
+                <p className="text-[11px] text-amber-300/80 mt-3">
+                  Note: this line is the <b>average across all rows</b> per {ts.date_column}. If your data has groups
+                  (e.g. the same metric for several cities), this blend can look noisy or flat — use{" "}
+                  <Link to="/analytics-workspace" className="text-blue-300 hover:text-blue-200">Forecasting</Link> with an
+                  ID column to see a clean per-group trend.
+                </p>
+              )}
             </Card>
           )}
 

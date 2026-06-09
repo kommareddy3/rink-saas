@@ -473,6 +473,11 @@ export default function Analytics() {
   // Schema analysis + training scope (panel group, custom window, excludes)
   const [analysis, setAnalysis] = useState(null);
   const [groupColumn, setGroupColumn] = useState(null);
+  // Composite ID: one or more columns combined into a single series key
+  // (e.g. state + city). When non-empty, this drives grouping.
+  const [idColumns, setIdColumns] = useState([]);
+  const [groupValues, setGroupValues] = useState([]); // combined values for idColumns
+  const [loadingGroupValues, setLoadingGroupValues] = useState(false);
   const [groupValue, setGroupValue] = useState(""); // "" = all groups combined
   const [trainStart, setTrainStart] = useState("");
   const [trainEnd, setTrainEnd] = useState("");
@@ -507,7 +512,10 @@ export default function Analytics() {
   // scope (panel group, custom date window, excluded ranges).
   const scopeParams = useCallback(() => {
     const p = {};
-    if (groupColumn && groupValue) {
+    if (idColumns.length && groupValue) {
+      p.group_columns = idColumns.join(",");
+      p.group_value = groupValue;
+    } else if (groupColumn && groupValue) {
       p.group_column = groupColumn;
       p.group_value = groupValue;
     }
@@ -516,11 +524,14 @@ export default function Analytics() {
     const ex = excludeRanges.filter((r) => r[0] && r[1]);
     if (ex.length) p.exclude = ex.map((r) => `${r[0]}:${r[1]}`).join(",");
     return p;
-  }, [groupColumn, groupValue, trainStart, trainEnd, excludeRanges]);
+  }, [idColumns, groupColumn, groupValue, trainStart, trainEnd, excludeRanges]);
 
   const scopeBody = useCallback(() => {
     const b = {};
-    if (groupColumn && groupValue) {
+    if (idColumns.length && groupValue) {
+      b.group_columns = idColumns;
+      b.group_value = groupValue;
+    } else if (groupColumn && groupValue) {
       b.group_column = groupColumn;
       b.group_value = groupValue;
     }
@@ -532,7 +543,38 @@ export default function Analytics() {
     const feats = featureColumns.filter((c) => c && c !== column);
     if (feats.length) b.feature_columns = feats;
     return b;
-  }, [groupColumn, groupValue, trainStart, trainEnd, excludeRanges, featureColumns, column]);
+  }, [idColumns, groupColumn, groupValue, trainStart, trainEnd, excludeRanges, featureColumns, column]);
+
+  // Columns that can serve as an ID/grouping key (categorical / detected IDs).
+  const idCandidates = useMemo(() => {
+    const cols = analysis?.columns || [];
+    return cols
+      .filter((c) => c.is_id_candidate || (!c.is_numeric && !c.is_date))
+      .map((c) => c.name);
+  }, [analysis]);
+
+  // Fetch the distinct combined values for the chosen ID columns.
+  const fetchGroupValues = useCallback(async (cols) => {
+    if (!cols.length) { setGroupValues([]); return; }
+    setLoadingGroupValues(true);
+    try {
+      const res = await api.get("/api/group-values", { params: { columns: cols.join(",") } });
+      setGroupValues(res.data?.values || []);
+    } catch {
+      setGroupValues([]);
+    } finally {
+      setLoadingGroupValues(false);
+    }
+  }, []);
+
+  const toggleIdColumn = useCallback((name) => {
+    setIdColumns((prev) => {
+      const next = prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name];
+      setGroupValue("");
+      fetchGroupValues(next);
+      return next;
+    });
+  }, [fetchGroupValues]);
 
   const fetchData = useCallback(
     async (columnOverride, extraParams = {}) => {
@@ -577,6 +619,12 @@ export default function Analytics() {
       const res = await api.post("/api/analyze", {});
       setAnalysis(res.data);
       setGroupColumn(res.data.suggested_group_column || null);
+      // Seed the composite ID with the auto-suggested column (if any) so the
+      // existing single-group behaviour works through the new picker.
+      const seed = res.data.suggested_group_column ? [res.data.suggested_group_column] : [];
+      setIdColumns(seed);
+      setGroupValues(res.data.group_values || []);
+      setGroupValue("");
       if (res.data.is_panel_data && Array.isArray(res.data.warnings)) {
         res.data.warnings.forEach((w) => toast.info(w, 7000));
       }
@@ -776,7 +824,8 @@ export default function Analytics() {
 
   const scopeSummary = () => {
     const parts = [];
-    if (groupColumn && groupValue) parts.push(`${groupColumn} = ${groupValue}`);
+    if (idColumns.length && groupValue) parts.push(`${idColumns.join(" + ")} = ${groupValue}`);
+    else if (groupColumn && groupValue) parts.push(`${groupColumn} = ${groupValue}`);
     if (trainStart || trainEnd) parts.push(`${trainStart || "start"} → ${trainEnd || "end"}`);
     const ex = excludeRanges.filter((r) => r[0] && r[1]);
     if (ex.length) parts.push(`${ex.length} excluded`);
@@ -1258,27 +1307,52 @@ export default function Analytics() {
                 }
               />
 
-              {/* Group / ID picker (panel data only) */}
-              {analysis?.is_panel_data && groupColumn && (
+              {/* ID / group picker — combine one or more columns into a key */}
+              {idCandidates.length > 0 && (
                 <div className="mb-4">
                   <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-medium">
-                    Group ({groupColumn})
+                    ID columns {idColumns.length > 0 && <span className="text-blue-300 normal-case tracking-normal">({idColumns.join(" + ")})</span>}
                   </label>
-                  <select
-                    value={groupValue}
-                    onChange={(e) => setGroupValue(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  >
-                    <option value="">All groups (combined)</option>
-                    {(analysis.group_values || []).map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-amber-300/80 mt-1.5">
-                    This dataset has multiple rows per date. Pick one group for a clean single series.
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {idCandidates.map((c) => {
+                      const on = idColumns.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => toggleIdColumn(c)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
+                            on ? "bg-blue-500/20 border-blue-400/40 text-blue-100" : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+                          }`}
+                        >
+                          {on ? "✓ " : ""}{c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-gray-500 mb-2">
+                    Pick one or more columns to identify a single series. e.g. select <b className="text-gray-300">state</b> + <b className="text-gray-300">city</b> so each city in each state is its own series.
                   </p>
+                  {idColumns.length > 0 && (
+                    <>
+                      <select
+                        value={groupValue}
+                        onChange={(e) => setGroupValue(e.target.value)}
+                        disabled={loadingGroupValues}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-60"
+                      >
+                        <option value="">{loadingGroupValues ? "Loading values…" : "All groups (combined)"}</option>
+                        {groupValues.map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-amber-300/80 mt-1.5">
+                        {groupValue
+                          ? `Training on ${idColumns.join(" + ")} = "${groupValue}".`
+                          : "Pick one value for a clean single series, or leave on “All” to combine every group."}
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 

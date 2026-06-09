@@ -178,6 +178,9 @@ class TrainRequest(BaseModel):
     feature_columns: Optional[List[str]] = None
     # Grouped / panel data: forecast a single series by filtering to one group.
     group_column: Optional[str] = None
+    # Composite ID: combine several columns into one key (e.g. state + city).
+    # When set, these take precedence over group_column.
+    group_columns: Optional[List[str]] = None
     group_value: Optional[str] = None
     # Training window. All optional — when omitted, ALL data is used.
     train_start: Optional[str] = None          # ISO date, inclusive
@@ -496,6 +499,31 @@ def _apply_filters(
             except Exception:
                 pass
     return out.reset_index(drop=True)
+
+
+# Separator used when several columns are combined into one composite ID/group
+# key (e.g. state + city  ->  "MI | Detroit").
+GROUP_SEP = " | "
+
+
+def _materialize_group(df: pd.DataFrame, group_columns: Optional[List[str]]):
+    """Combine one or more columns into a single synthetic '__group__' column so
+    the rest of the pipeline (which works on a single group column) can treat a
+    multi-column composite ID as one series. Returns (df, group_col, used_cols).
+    If no valid columns are given, returns (df, None, [])."""
+    cols = [c for c in (group_columns or []) if c in df.columns]
+    if not cols:
+        return df, None, []
+    df = df.copy()
+    df["__group__"] = df[cols].astype(str).apply(lambda r: GROUP_SEP.join(r.values), axis=1)
+    return df, "__group__", cols
+
+
+def _parse_group_columns(raw: Optional[str]) -> List[str]:
+    """Parse a comma-separated group-columns query param."""
+    if not raw:
+        return []
+    return [c.strip() for c in raw.split(",") if c.strip()]
 
 
 def _load_dataset(paths: UserPaths) -> pd.DataFrame:
@@ -1039,16 +1067,21 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
     paths = _get_paths(request)
     df, date_col, frequency, days_per_step = _prepare_dataset(paths)
 
-    # The group column (if any) must be excluded from value detection so a
+    # Composite ID: collapse multiple columns (e.g. state + city) into one
+    # synthetic group key so this trains a single, clean per-group series.
+    df, composite_col, group_cols_used = _materialize_group(df, req.group_columns)
+    group_column = composite_col or req.group_column
+
+    # The group column(s) must be excluded from value detection so a
     # categorical/ID column is never mistaken for the forecast target.
-    excluded = [c for c in [date_col, req.group_column] if c]
+    excluded = [c for c in [date_col, group_column, *group_cols_used] if c]
     column = _resolve_value_column(df, paths, requested=req.column, exclude=excluded)
     available = _list_numeric_columns(df, exclude=excluded)
 
     # Filter to a single group + the requested training window.
     df = _apply_filters(
         df, date_col,
-        group_column=req.group_column,
+        group_column=group_column,
         group_value=req.group_value,
         train_start=req.train_start,
         train_end=req.train_end,
@@ -1137,6 +1170,9 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
         train_start = df[date_col].min().strftime("%Y-%m-%d")
         train_end = df[date_col].max().strftime("%Y-%m-%d")
 
+    # Human-readable label for the (possibly composite) group key.
+    group_label = GROUP_SEP.join(group_cols_used) if group_cols_used else req.group_column
+
     _save_model(
         paths,
         model,
@@ -1145,7 +1181,8 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
             "feature_columns": feature_columns,
             "exog_models": exog_models,
             "date_column": date_col,
-            "group_column": req.group_column,
+            "group_column": group_label,
+            "group_columns": group_cols_used,
             "group_value": req.group_value,
             "frequency": frequency,
             "days_per_step": days_per_step,
@@ -1154,7 +1191,7 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
     log.info(
         "[user=%s] trained on %d rows (col=%s, features=%s, group=%s/%s, date=%s, freq=%s) RMSE=%.4f MAE=%.4f",
         paths.user_id, len(feats), column, feature_columns or "-",
-        req.group_column, req.group_value, date_col, frequency, rmse, mae,
+        group_label, req.group_value, date_col, frequency, rmse, mae,
     )
 
     return TrainResponse(
@@ -1164,7 +1201,7 @@ def train(request: Request, req: TrainRequest = TrainRequest()) -> TrainResponse
         feature_columns=feature_columns,
         available_columns=available,
         date_column=date_col,
-        group_column=req.group_column,
+        group_column=group_label,
         group_value=req.group_value,
         frequency=frequency,
         days_per_step=days_per_step,
@@ -1256,13 +1293,14 @@ def get_data(
     limit: int = 5000,
     column: Optional[str] = None,
     group_column: Optional[str] = None,
+    group_columns: Optional[str] = None,
     group_value: Optional[str] = None,
     train_start: Optional[str] = None,
     train_end: Optional[str] = None,
     exclude: Optional[str] = None,
 ) -> DataResponse:
     paths = _get_paths(request)
-    if not paths.dataset.exists():
+    if not blobstore.exists(paths.dataset_key):
         # Fresh user — show a tiny demo so the dashboard renders.
         return DataResponse(
             column="demo",
@@ -1275,13 +1313,17 @@ def get_data(
         )
 
     df, date_col, frequency, days_per_step = _prepare_dataset(paths)
-    excluded = [c for c in [date_col, group_column] if c]
+    # Composite ID support (e.g. state + city) for the displayed series.
+    gcols = _parse_group_columns(group_columns)
+    df, composite_col, gcols_used = _materialize_group(df, gcols)
+    eff_group_column = composite_col or group_column
+    excluded = [c for c in [date_col, eff_group_column, *gcols_used] if c]
     chosen = _resolve_value_column(df, paths, requested=column, exclude=excluded)
     available = _list_numeric_columns(df, exclude=excluded)
 
     df = _apply_filters(
         df, date_col,
-        group_column=group_column,
+        group_column=eff_group_column,
         group_value=group_value,
         train_start=train_start,
         train_end=train_end,
@@ -1311,10 +1353,25 @@ def get_data(
         dates=dates_iso,
         frequency=frequency,
         date_column=date_col,
-        group_column=group_column,
+        group_column=(GROUP_SEP.join(gcols_used) if gcols_used else group_column),
         group_value=group_value,
         days_per_step=days_per_step,
     )
+
+
+# Distinct values for a (possibly composite) group key — used to populate the
+# group selector in the forecasting UI.
+@app.get("/group-values")
+def group_values(request: Request, columns: Optional[str] = None) -> dict:
+    paths = _get_paths(request)
+    df = _load_dataset(paths)
+    cols = _parse_group_columns(columns)
+    df, gcol, used = _materialize_group(df, cols)
+    if not gcol:
+        return {"columns": [], "values": []}
+    vals = [str(v) for v in df[gcol].dropna().unique()[:1000]]
+    vals.sort()
+    return {"columns": used, "label": GROUP_SEP.join(used), "values": vals, "count": len(vals)}
 
 
 @app.delete("/user-data")
