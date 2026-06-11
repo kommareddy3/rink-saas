@@ -96,6 +96,7 @@ export default function Footer() {
             <FooterColumn title="Product">
               <FooterAnchor href={ANALYTICS.workspace}>Workspace</FooterAnchor>
               <FooterLink to="/industries">Industries</FooterLink>
+              <FooterAnchor href="/#selected-work">Our Work</FooterAnchor>
               <FooterAnchor href={ANALYTICS.signUp}>Get Started</FooterAnchor>
             </FooterColumn>
 

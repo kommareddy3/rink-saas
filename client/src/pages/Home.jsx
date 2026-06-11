@@ -31,6 +31,14 @@ const SERVICES = [
     badge: "Product",
   },
   {
+    name: "Web & E-Commerce Development",
+    tagline: "Storefronts · checkout · admin",
+    description: "Custom websites and online stores — product catalog, cart, secure payments, and an owner dashboard. Recently shipped a full grocery e-commerce build.",
+    accent: "teal",
+    href: "/#selected-work",
+    badge: "New",
+  },
+  {
     name: "Cloud Migrations",
     tagline: "AWS · Azure · GCP",
     description: "Landing-zone design, migration waves, and post-migration optimisation — with cost guard-rails baked in.",
@@ -59,6 +67,7 @@ const SERVICES = [
 const ACCENT = {
   blue: "bg-blue-50 text-blue-700 ring-blue-100",
   cyan: "bg-cyan-50 text-cyan-700 ring-cyan-100",
+  teal: "bg-teal-50 text-teal-700 ring-teal-100",
   red: "bg-red-50 text-red-700 ring-red-100",
   emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
   purple: "bg-purple-50 text-purple-700 ring-purple-100",
@@ -73,6 +82,7 @@ const ACCENT = {
 const EXPLORER_TABS = [
   { id: "staffing", label: "Staff augmentation", intro: "Senior C2C consultants or W2 placements — vetted, code-reviewed, and reference-checked.", points: ["Shortlists within 48 hours for common stacks", "Right-to-represent stays clean — vendor-neutral by policy", "C2C through your LLC OR W2 on our payroll", "US, Canada, and offshore delivery options"], cta: { to: "/contact?reason=sales", label: "Send a JD" } },
   { id: "data", label: "Data analytics & AI", intro: "Data engineering, MLOps, and our own SaaS — RINK Data Analytics — for short time-to-value.", points: ["Snowflake / Databricks / Postgres modern stacks", "MLOps with reproducible feature stores and CI", "Optional: ship straight to RINK Data Analytics", "Privacy-aware pipelines with encryption at rest from day one"], cta: { to: ANALYTICS.home, external: true, label: "Open RINK Data Analytics" } },
+  { id: "web", label: "Web & e-commerce", intro: "Conversion-focused websites and online stores — from storefront to checkout to the admin dashboard that runs the business.", points: ["Responsive storefronts with fast, SEO-friendly pages", "Product catalog, cart, and secure checkout (Stripe & more)", "Delivery / pickup scheduling and order management", "Owner dashboard for inventory, orders, and promotions", "Recently delivered: a complete grocery e-commerce platform"], cta: { to: "/#selected-work", label: "See the work" } },
   { id: "cloud", label: "Cloud migrations", intro: "Move workloads to AWS, Azure, or GCP without breaking what's already working.", points: ["Landing-zone design with cost guard-rails", "Migration waves planned around business calendars", "Containers, serverless, or managed databases where it pays off", "Hand-off runbooks so your team owns it after go-live"], cta: { to: "/contact?reason=sales", label: "Plan a migration" } },
   { id: "security", label: "Cybersecurity", intro: "From hardened landing zones to 24×7 SOC retainers — security as the baseline, not an upsell.", points: ["Identity-first architectures (Entra, AWS SSO, Okta)", "Continuous controls for SOC2 / HIPAA / ISO 27001", "Detection-as-code pipelines and IR retainers", "Threat-modeling workshops before the first sprint"], cta: { to: "/contact?reason=security", label: "Talk to security" } },
   { id: "managed", label: "Managed services", intro: "Outcome-based ops with monthly KPI reporting — never minutes-billed body-shopping.", points: ["24×7 monitoring, patching, backup, and DR", "L1–L3 helpdesk with named pods", "FinOps and cost optimisation built into every runbook", "Quarterly account reviews with the senior practice lead"], cta: { to: "/contact?reason=sales", label: "Hand us the ops" } },
@@ -261,7 +271,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="max-w-3xl mb-12">
             <div className="text-[11px] uppercase tracking-widest text-blue-700 font-semibold mb-3">What we deliver</div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">Six practices. One accountable partner.</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">Seven practices. One accountable partner.</h2>
             <p className="text-slate-600 mt-3">Pick a service or hand us the whole stack. Each practice is owned end-to-end — discovery to handover.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -283,7 +293,7 @@ export default function Home() {
                   <p className="text-sm text-slate-600 mt-3 leading-relaxed">{s.description}</p>
                   {s.href && (
                     <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-700">
-                      Open product
+                      {s.external ? "Open product" : "See the work"}
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                       </svg>
@@ -323,7 +333,7 @@ export default function Home() {
           <div className="text-center max-w-2xl mx-auto mb-10">
             <div className="text-[11px] uppercase tracking-widest text-blue-700 font-semibold mb-3">Explore RINK</div>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">Click a practice. See how we engage.</h2>
-            <p className="text-slate-600 mt-3">Five tabs, one engagement framework. Same operator-grade team behind every door.</p>
+            <p className="text-slate-600 mt-3">One engagement framework across every practice. Same operator-grade team behind every door.</p>
           </div>
           <Explorer />
         </div>
@@ -384,6 +394,89 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ============== SELECTED WORK / CASE STUDY ============== */}
+      <section id="selected-work" className="px-4 sm:px-6 lg:px-10 py-20 scroll-mt-20 bg-slate-50">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-2xl mb-12">
+            <div className="text-[11px] uppercase tracking-widest text-teal-700 font-semibold mb-3">Selected work</div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">Real builds. Shipped and live.</h2>
+            <p className="text-slate-600 mt-3">A look at what we deliver beyond the platform — full-stack product work for real businesses.</p>
+          </div>
+
+          <div className="rounded-3xl overflow-hidden ring-1 ring-slate-200 bg-white shadow-sm">
+            <div className="grid grid-cols-1 lg:grid-cols-2">
+              {/* Visual */}
+              <div className="relative min-h-[260px] bg-gradient-to-br from-emerald-500 via-teal-600 to-blue-700 p-8 sm:p-10 flex flex-col justify-between text-white">
+                <div>
+                  <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-widest font-semibold px-3 py-1 rounded-full ring-1 ring-white/30 bg-white/10">
+                    Case study · E-commerce
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-bold mt-5 leading-tight">
+                    Grocery e-commerce platform
+                  </h3>
+                  <p className="text-white/85 mt-3 leading-relaxed text-sm">
+                    A complete online grocery store — browse, cart, checkout, and delivery/pickup —
+                    plus an owner dashboard to manage products, inventory, and orders. Designed to
+                    turn foot-traffic shoppers into repeat online customers.
+                  </p>
+                </div>
+                <div className="mt-8 flex flex-wrap gap-2 text-[11px]">
+                  {["React", "Node.js", "Responsive", "Secure checkout", "Admin dashboard", "SEO"].map((t) => (
+                    <span key={t} className="px-2.5 py-1 rounded-md bg-white/15 ring-1 ring-white/20">{t}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="p-8 sm:p-10">
+                <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-3">What we built</div>
+                <ul className="space-y-2.5 text-sm text-slate-700">
+                  {[
+                    "Mobile-first storefront with searchable product catalog and categories",
+                    "Cart, secure checkout, and online payments",
+                    "Delivery and in-store pickup scheduling",
+                    "Order management + inventory and promotions dashboard for the owner",
+                    "Fast, SEO-friendly pages to win local search",
+                  ].map((p) => (
+                    <li key={p} className="flex items-start gap-2.5">
+                      <span className="mt-1 w-4 h-4 rounded bg-emerald-50 ring-1 ring-emerald-200 flex items-center justify-center flex-none">
+                        <svg className="w-2.5 h-2.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      </span>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Outcome chips — replace bracketed values with real metrics when ready */}
+                <div className="mt-6 grid grid-cols-3 gap-3">
+                  {[
+                    { v: "Live", l: "in production" },
+                    { v: "[X]", l: "products listed" },
+                    { v: "[X]%", l: "more online orders" },
+                  ].map((s) => (
+                    <div key={s.l} className="rounded-xl bg-slate-50 ring-1 ring-slate-200 p-3 text-center">
+                      <div className="text-lg font-bold text-slate-900">{s.v}</div>
+                      <div className="text-[10px] uppercase tracking-widest text-slate-500 mt-0.5">{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-7 flex flex-wrap gap-3">
+                  <Link to="/contact?reason=sales" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition">
+                    Build something like this
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                  </Link>
+                  <a href="https://docs.rinkglobal.com/showcase" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-slate-900 bg-white ring-1 ring-slate-200 hover:bg-slate-50 transition">
+                    Read the case study
+                  </a>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-3">Client name shared on request. Add live URL &amp; metrics when approved.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ============== FINAL CTA ============== */}
       <section className="px-4 sm:px-6 lg:px-10 py-20 bg-white">
         <div className="relative overflow-hidden max-w-5xl mx-auto rounded-3xl bg-gradient-to-br from-slate-900 to-blue-900 text-white p-10 sm:p-14 text-center">
@@ -429,6 +522,7 @@ function ServiceIcon({ accent }) {
     red: "M12 11c0-1.105.895-2 2-2s2 .895 2 2v2m-4 0h4m-7 8a9 9 0 110-18 9 9 0 010 18z",
     emerald: "M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25",
     purple: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
+    teal: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
     amber: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
   }[accent] || "";
   return (

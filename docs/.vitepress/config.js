@@ -30,6 +30,7 @@ export default defineConfig({
     outline: { level: [2, 3], label: "On this page" },
 
     nav: [
+      { text: "Showcase", link: "/showcase", activeMatch: "^/showcase" },
       { text: "Guides", link: "/guides/", activeMatch: "^/guides/" },
       { text: "Security", link: "/security", activeMatch: "^/security" },
       { text: "API", link: "/api/", activeMatch: "^/api/" },
@@ -52,6 +53,7 @@ export default defineConfig({
           items: [
             { text: "Welcome", link: "/" },
             { text: "Getting Started", link: "/getting-started" },
+            { text: "Showcase — Selected Work", link: "/showcase" },
             { text: "Architecture", link: "/architecture" },
             { text: "Security & data protection", link: "/security" },
           ],
